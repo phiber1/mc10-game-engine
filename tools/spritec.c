@@ -4,7 +4,7 @@
  *
  * Input: one or more sprites
  *
- *   sprite NAME mono|artifact [pad N] [delta]
+ *   sprite NAME mono|artifact [pad N] [halo N] [delta]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -17,7 +17,12 @@
  *   NAME_sr<s>  with "pad N": store the whole padded box, zeros included.
  *               The blank border erases the previous position as it draws,
  *               so a sprite moving at most N pixels a frame needs no erase.
- *   NAME_or, NAME_xr, NAME_er (, NAME_sr)  tables of the routine addresses
+ *   NAME_hr<s>  with "halo N": the sprite plus a halo (its shape grown by
+ *               N pixels) cleared around it, in one read-modify-write pass.
+ *               Erases its old position (moves up to N pixels) without
+ *               ever going blank, and draws in front of anything drawn
+ *               earlier: draw in priority order, lowest first.
+ *   NAME_or, NAME_xr, NAME_er (, NAME_sr / NAME_hr)  routine tables
  *   NAME_d<d>s<s>  with "delta": XOR(old, new) for a one-pixel move in
  *               direction d = (dy+1)*3 + (dx+1) from shift s, in one
  *               read-modify-write pass, so the sprite is never missing.
@@ -40,8 +45,9 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, w, h, pad, delta;
+static int artifact, w, h, pad, delta, halo;
 static char art[MAXH][MAXW + 1];
+static unsigned char hal[MAXH][MAXW];   /* halo: sprite grown by `halo` pixels */
 
 /* the sprite's pixel bits at shift s: row r, byte b */
 static int nbytes(int s) { int bpp = artifact ? 2 : 1; return (w * bpp + s * bpp + 7) / 8; }
@@ -62,6 +68,36 @@ static unsigned char sbyte(int r, int s, int b)
     return v;
 }
 
+/* the halo mask bits at shift s: row r, byte b (all bits of a halo pixel) */
+static unsigned char mbyte(int r, int s, int b)
+{
+    int bpp = artifact ? 2 : 1;
+    unsigned char m = 0;
+    for (int bit = 0; bit < 8; bit += bpp) {
+        int px = (b * 8 + bit) / bpp - s;
+        if (px < 0 || px >= w || !hal[r][px]) continue;
+        m |= (unsigned char)(((1 << bpp) - 1) << (8 - bpp - bit));
+    }
+    return m;
+}
+
+/* Build the halo: every pixel within `halo` pixels (square distance, so
+ * diagonal moves are covered) of a sprite pixel.  The art is already
+ * padded by `halo`, so the halo fits in the box. */
+static void build_halo(void)
+{
+    memset(hal, 0, sizeof hal);
+    for (int r = 0; r < h; r++)
+        for (int c = 0; c < w; c++) {
+            if (art[r][c] == '.' || art[r][c] == ' ') continue;
+            for (int dr = -halo; dr <= halo; dr++)
+                for (int dc = -halo; dc <= halo; dc++) {
+                    int rr = r + dr, cc = c + dc;
+                    if (rr >= 0 && rr < h && cc >= 0 && cc < w) hal[rr][cc] = 1;
+                }
+        }
+}
+
 /* Load an 8-bit register with v unless it already holds it (-1 = unknown). */
 static int load8(char reg, int *cur, int v)
 {
@@ -74,7 +110,9 @@ static int load8(char reg, int *cur, int v)
 
 /* Emit code for one routine.  kind: 'o' or, 'x' xor, 'e' erase,
  * 's' store (writes every byte of the box, zeros included: with a blank
- * border this erases the sprite's previous position as it draws) */
+ * border this erases the sprite's previous position as it draws),
+ * 'h' halo (clears the halo and draws the sprite: plain stores where a
+ * byte is all halo, AND/OR read-modify-write on the halo's edge) */
 static void routine(int kind, int s)
 {
     printf("%s_%cr%d:\n", name, kind, s);
@@ -86,9 +124,13 @@ static void routine(int kind, int s)
         int nb = nbytes(s);
         for (int b = 0; b < nb; b++) {
             unsigned char v = sbyte(r, s, b);
-            if (!v && kind != 's') continue;
+            unsigned char m = kind == 'h' ? mbyte(r, s, b) : 0;
+            if (kind == 'h' ? !m : (!v && kind != 's')) continue;
+            int store = kind == 's' || (kind == 'h' && m == 0xFF);
             int off = r * 32 + b - base;
-            int pair = b + 1 < nb && (kind == 's' || (kind == 'e' && sbyte(r, s, b + 1)));
+            int pair = b + 1 < nb && ((kind == 's') ||
+                                      (kind == 'h' && m == 0xFF && mbyte(r, s, b + 1) == 0xFF) ||
+                                      (kind == 'e' && sbyte(r, s, b + 1)));
             int need = pair ? off + 1 : off;
             while (need > 255) {                    /* move X down, whole rows */
                 int st = r * 32 - base;
@@ -100,7 +142,13 @@ static void routine(int kind, int s)
                 off = r * 32 + b - base;
                 need = pair ? off + 1 : off;
             }
-            if (kind == 's') {
+            if (kind == 'h' && !store) {            /* halo edge: clear halo, add sprite */
+                printf("\tldaa\t%d,x\n\tanda\t#$%02X\n", off, (unsigned char)~m);
+                cycles += 6;
+                if (v) { printf("\toraa\t#$%02X\n", v); cycles += 2; }
+                printf("\tstaa\t%d,x\n", off); cycles += 4;
+                ra = -1;
+            } else if (store) {
                 if (pair) {
                     int lo = sbyte(r, s, b + 1);
                     if (ra != v && rb != lo && v && lo) {
@@ -199,7 +247,7 @@ static void emit(void)
     printf("\n; ---- sprite %s: %dx%d %s\n", name, w, h, artifact ? "artifact" : "mono");
     printf("%s_W\tequ\t%d\n%s_H\tequ\t%d\n%s_SHIFTS\tequ\t%d\n%s_PAD\tequ\t%d\n",
            name, w, name, h, name, shifts, name, pad);
-    const char *kinds = pad ? "oxes" : "oxe";
+    const char *kinds = halo ? "oxeh" : pad ? "oxes" : "oxe";
     int nk = (int)strlen(kinds);
     for (int k = 0; k < nk; k++) {
         printf("%s_%cr:\n", name, kinds[k]);
@@ -241,12 +289,13 @@ int main(int argc, char **argv)
         lineno++;
         line[strcspn(line, "\r\n")] = 0;
         if (!in) {
-            pad = 0; delta = 0;
+            pad = 0; delta = 0; halo = 0;
             if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
                 /* options after the mode, in any order: pad N, delta */
                 char *opt = strstr(line, mode) + strlen(mode);
                 for (char *t = strtok(opt, " \t"); t; t = strtok(NULL, " \t")) {
                     if (!strcmp(t, "delta")) delta = 1;
+                    else if (!strcmp(t, "halo") && (t = strtok(NULL, " \t"))) pad = halo = atoi(t);
                     else if (!strcmp(t, "pad") && (t = strtok(NULL, " \t"))) pad = atoi(t);
                     else { fprintf(stderr, "%s:%d: unknown option %s\n", argv[1], lineno, t); return 1; }
                 }
@@ -263,6 +312,7 @@ int main(int argc, char **argv)
         if (!strcmp(line, "end")) {
             if (!w || !h) { fprintf(stderr, "%s:%d: empty sprite\n", argv[1], lineno); return 1; }
             if (!apply_pad()) { fprintf(stderr, "%s:%d: sprite too big with its pad\n", argv[1], lineno); return 1; }
+            if (halo) build_halo();
             emit();
             in = 0;
             continue;

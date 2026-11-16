@@ -11,6 +11,9 @@
 ;           its redraw, to measure how often the beam catches a sprite
 ;   MODE=2  self-erasing: the sprite has a 3-pixel blank border and is
 ;           drawn in store mode, so no erase pass (never disappears)
+;   MODE=4  halo: like MODE=2 but the cleared border follows the sprite's
+;           shape (grown by 3 pixels), so later sprites cover earlier
+;           ones in shape: priority by object order (last = in front)
 ;   MODE=3  XOR delta: drawn once with XOR, then moved one pixel at a time,
 ;           each step one XOR(old, new) pass (never missing; round overlaps)
 ;
@@ -44,6 +47,8 @@
 #define SPR_NAME(s) porb_##s
 #elif MODE == 3
 #define SPR_NAME(s) dorb_##s
+#elif MODE == 4
+#define SPR_NAME(s) horb_##s
 #else
 #define SPR_NAME(s) orb_##s
 #endif
@@ -55,6 +60,8 @@
 #define SPR_NAME(s) pball_##s
 #elif MODE == 3
 #define SPR_NAME(s) dball_##s
+#elif MODE == 4
+#define SPR_NAME(s) hball_##s
 #else
 #define SPR_NAME(s) ball_##s
 #endif
@@ -64,6 +71,8 @@
 
 #if MODE == 3
 #define SPR_DRAW SPR_NAME(xr)           /* first draw only; then delta moves */
+#elif MODE == 4
+#define SPR_DRAW SPR_NAME(hr)
 #elif MODE == 2
 #define SPR_DRAW SPR_NAME(sr)
 #elif MODE == 1
@@ -109,7 +118,7 @@ oloop:
                 DBGB
                 ldx     obj
 #endif
-#if MODE != 2
+#if MODE != 2 && MODE != 4
                 ldaa    0,x             ; erase at the old position
                 ldab    1,x
                 ldx     #SPR_ERASE
@@ -297,7 +306,9 @@ objs_end:
 
 #include "frame.asm"
 #include "sprite.asm"
-#if MODE == 3
+#if MODE == 4
+#include "halo_spr.inc"
+#elif MODE == 3
 #if ART
 #include "dorb_spr.inc"
 #else

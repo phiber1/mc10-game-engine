@@ -221,6 +221,13 @@ Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
 ### Sprite strategy (so far)
 
 Choose per sprite type:
+* **Halo** (`halo N`, bench `MODE=4`): the sprite plus a cleared halo (its
+  shape grown by N = top speed), one read-modify-write pass, drawn in
+  priority order (lowest first).  Never blank, so no banding; front
+  sprites cover back ones in shape, with an N-pixel black outline.
+  Measured ~707 cycles per 16x16 mono or 8x16 artifact sprite at speeds
+  1-3 (18 per 60 Hz frame); both test sprites together ~11K of code.
+  Probably the best general-purpose choice.
 * **Self-erasing** (`pad N`): cheapest, never flickers; for sprites that
   don't overlap much, on black or sparse backgrounds.
 * **XOR delta** (`delta`): never flickers, overlaps invert; best for slow
