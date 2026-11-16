@@ -13,6 +13,9 @@
 #ifndef DEBUG
 #define DEBUG 1
 #endif
+#ifndef METER
+#define METER 0
+#endif
 #ifndef DEBUG_TICK
 #define DEBUG_TICK 0
 #endif

@@ -57,7 +57,9 @@ build/%.bin: build/%.raw build/mkc10
 
 # Sprite test variants for visual checking: build/sp_<art><mode>.c10
 #   art m = 16x16 mono (shown without artifact colours), a = 8x8 artifact
-#   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing, 3 = XOR delta, 4 = halo
+#   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing, 3 = XOR delta, 4 = halo,
+#   5 = 1-pixel halo at 1 pixel per frame
+# build/spk_<art><mode>.c10 are the same with the CPU meter (METER=1).
 # Sprite counts are chosen to fit in one 60 Hz frame.
 NSPR_m0 := 16
 NSPR_m1 := 12
@@ -69,12 +71,19 @@ NSPR_m3 := 11
 NSPR_a3 := 11
 NSPR_m4 := 18
 NSPR_a4 := 18
-SPVARS  := m0 m1 m2 m3 m4 a0 a1 a2 a3 a4
+NSPR_m5 := 20
+NSPR_a5 := 20
+SPVARS  := m0 m1 m2 m3 m4 m5 a0 a1 a2 a3 a4 a5
 
-variants: $(foreach v,$(SPVARS),build/sp_$(v).c10)
+variants: $(foreach v,$(SPVARS),build/sp_$(v).c10 build/spk_$(v).c10)
 
 build/sp_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
+	    -DART=$(if $(findstring a,$*),1,0) -DMODE=$(subst a,,$(subst m,,$*)) \
+	    -DNSPR=$(NSPR_$*) $(CPPDEFS) $< -o $@
+
+build/spk_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
 	    -DART=$(if $(findstring a,$*),1,0) -DMODE=$(subst a,,$(subst m,,$*)) \
 	    -DNSPR=$(NSPR_$*) $(CPPDEFS) $< -o $@
 
