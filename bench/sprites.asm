@@ -6,6 +6,8 @@
 ;   ART=1   8x8 artifact-colour sprite ("orb", 128x192 four-colour mode)
 ;   MODE=0  OR draw, clear-to-black erase (fastest; overlaps damage each other)
 ;   MODE=1  XOR draw, XOR erase           (overlaps are safe)
+;   TRACE=1 log each sprite's y to the debug port before its erase and after
+;           its redraw, to measure how often the beam catches a sprite
 ;   MODE=2  self-erasing: the sprite has a 3-pixel blank border and is
 ;           drawn in store mode, so no erase pass (never disappears)
 ;
@@ -21,6 +23,9 @@
 #endif
 #ifndef MODE
 #define MODE 0
+#endif
+#ifndef TRACE
+#define TRACE 0
 #endif
 #ifndef ART
 #define ART 0
@@ -74,6 +79,11 @@ loop:
                 ldx     #objs
 oloop:
                 stx     obj
+#if TRACE
+                ldab    1,x             ; trace: old y, beam before erase
+                DBGB
+                ldx     obj
+#endif
 #if MODE != 2
                 ldaa    0,x             ; erase at the old position
                 ldab    1,x
@@ -99,6 +109,11 @@ oloop:
 +               stab    1,x
                 ldx     #SPR_DRAW
                 jsr     SPR_CALL        ; draw at the new position
+#if TRACE
+                ldx     obj             ; trace: new y, beam after draw
+                ldab    1,x
+                DBGB
+#endif
                 ldx     obj
                 ldab    #4
                 abx
