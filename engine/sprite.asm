@@ -8,6 +8,8 @@
 ; top-left screen byte, and jump to it.  About 60 cycles plus the routine.
 ; Uses A, B, X.  The routine address is patched into the JMP, so this code
 ; must run from RAM.
+;
+; spr_mono_d, spr_art_d   XOR delta moves; see below.
 
 spr_mono:
                 pshb                    ; y
@@ -41,6 +43,44 @@ spr_art:
                 staa    spr_col
                 andb    #3              ; shift = x & 3
                 bra     spr_go
+
+; spr_mono_d / spr_art_d: XOR delta moves (spritec "delta").
+; A = OLD x, B = OLD y, X = NAME_dt<d>, the table for the move direction.
+; The delta routines expect X one row up and one byte left of the old
+; position, so these subtract 33 from the screen address.
+spr_mono_d:
+                pshb
+                tab
+                lsra
+                lsra
+                lsra
+                staa    spr_col
+                andb    #7
+spr_go_d:
+                aslb
+                abx
+                ldx     0,x
+                stx     spr_jmpd+1
+                pulb
+                ldx     #rowtab
+                abx
+                abx
+                ldd     0,x
+                addb    spr_col
+                subd    #ROW_BYTES+1    ; one row up, one byte left
+                std     spr_scr
+                ldx     spr_scr
+spr_jmpd:
+                jmp     spr_jmpd        ; patched
+
+spr_art_d:
+                pshb
+                tab
+                lsra
+                lsra
+                staa    spr_col
+                andb    #3
+                bra     spr_go_d
 
 ; screen address of each row
 rowtab:

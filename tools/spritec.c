@@ -4,7 +4,7 @@
  *
  * Input: one or more sprites
  *
- *   sprite NAME mono|artifact [pad N]
+ *   sprite NAME mono|artifact [pad N] [delta]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -18,6 +18,11 @@
  *               The blank border erases the previous position as it draws,
  *               so a sprite moving at most N pixels a frame needs no erase.
  *   NAME_or, NAME_xr, NAME_er (, NAME_sr)  tables of the routine addresses
+ *   NAME_d<d>s<s>  with "delta": XOR(old, new) for a one-pixel move in
+ *               direction d = (dy+1)*3 + (dx+1) from shift s, in one
+ *               read-modify-write pass, so the sprite is never missing.
+ *               Tables NAME_dt (9 pointers) -> NAME_dt<d> (one per shift).
+ *               Call through spr_mono_d / spr_art_d with the OLD x, y.
  *   NAME_W, NAME_H (including the pad), NAME_SHIFTS, NAME_PAD
  *
  * Every routine takes X = screen address of the sprite's top-left byte and
@@ -35,7 +40,7 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, w, h, pad;
+static int artifact, w, h, pad, delta;
 static char art[MAXH][MAXW + 1];
 
 /* the sprite's pixel bits at shift s: row r, byte b */
@@ -124,6 +129,70 @@ static void routine(int kind, int s)
     printf("\trts\t\t\t; %d cycles + rts\n", cycles);
 }
 
+/* XOR delta routine: one read-modify-write pass of XOR(old, new) that moves
+ * the sprite one pixel from shift s in direction (dx, dy).  Every changed
+ * byte goes straight from the old picture to the new one, so the sprite is
+ * never missing.  X points one row up and one byte left of the old position
+ * (the engine's spr_mono_d / spr_art_d subtract 33), so all offsets are
+ * positive. */
+#define DROWS (MAXH + 2)
+#define DBYTES 34
+static void delta_routine(int d, int s)
+{
+    static unsigned char g[DROWS][DBYTES];
+    int dx = d % 3 - 1, dy = d / 3 - 1;
+    int bpp = artifact ? 2 : 1, m = 8 / bpp;        /* one byte of margin, in pixels */
+    memset(g, 0, sizeof g);
+    for (int pass = 0; pass < 2; pass++)            /* old image, then new */
+        for (int r = 0; r < h; r++)
+            for (int c = 0; c < w; c++) {
+                char ch = art[r][c];
+                int val = !artifact ? (ch != '.' && ch != ' ')
+                                    : ch == 'W' ? 3 : ch == 'O' ? 2 : ch == 'B' ? 1 : 0;
+                if (!val) continue;
+                int px = c + s + m + (pass ? dx : 0), row = r + 1 + (pass ? dy : 0);
+                int bit = px * bpp % 8;
+                g[row][px * bpp / 8] ^= (unsigned char)(val << (8 - bpp - bit));
+            }
+    printf("%s_d%ds%d:\n", name, d, s);
+    int base = 0, cycles = 0;
+    for (int row = 0; row < h + 2; row++)
+        for (int b = 0; b < DBYTES; b++) {
+            unsigned char v = g[row][b];
+            if (!v) continue;
+            int off = row * 32 + b - base;
+            while (off > 255) {
+                int st = row * 32 - base;
+                if (st > 224) st = 224;
+                printf("\tldab\t#%d\n\tabx\n", st);
+                cycles += 5;
+                base += st;
+                off = row * 32 + b - base;
+            }
+            printf("\tldaa\t%d,x\n\teora\t#$%02X\n\tstaa\t%d,x\n", off, v, off);
+            cycles += 10;
+        }
+    printf("\trts\t\t\t; %d cycles + rts\n", cycles);
+}
+
+static void emit_delta(void)
+{
+    int shifts = artifact ? 4 : 8;
+    /* NAME_dt: 9 direction tables, index (dy+1)*3 + (dx+1); 4 = no move */
+    printf("%s_dt:\n", name);
+    for (int d = 0; d < 9; d++) printf("\tfdb\t%s_dt%d\n", name, d);
+    for (int d = 0; d < 9; d++) {
+        printf("%s_dt%d:\n", name, d);
+        for (int s = 0; s < shifts; s++)
+            if (d == 4) printf("\tfdb\t%s_dnop\n", name);
+            else printf("\tfdb\t%s_d%ds%d\n", name, d, s);
+    }
+    printf("%s_dnop:\n\trts\n", name);
+    for (int d = 0; d < 9; d++)
+        if (d != 4)
+            for (int s = 0; s < shifts; s++) delta_routine(d, s);
+}
+
 static void emit(void)
 {
     int shifts = artifact ? 4 : 8;
@@ -138,6 +207,7 @@ static void emit(void)
     }
     for (int k = 0; k < nk; k++)
         for (int s = 0; s < shifts; s++) routine(kinds[k], s);
+    if (delta) emit_delta();
 }
 
 /* Surround the art with a blank border of pad pixels on every side. */
@@ -171,8 +241,15 @@ int main(int argc, char **argv)
         lineno++;
         line[strcspn(line, "\r\n")] = 0;
         if (!in) {
-            pad = 0;
-            if (sscanf(line, "sprite %63s %31s pad %d", name, mode, &pad) >= 2) {
+            pad = 0; delta = 0;
+            if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
+                /* options after the mode, in any order: pad N, delta */
+                char *opt = strstr(line, mode) + strlen(mode);
+                for (char *t = strtok(opt, " \t"); t; t = strtok(NULL, " \t")) {
+                    if (!strcmp(t, "delta")) delta = 1;
+                    else if (!strcmp(t, "pad") && (t = strtok(NULL, " \t"))) pad = atoi(t);
+                    else { fprintf(stderr, "%s:%d: unknown option %s\n", argv[1], lineno, t); return 1; }
+                }
                 if (pad < 0 || pad > 16) { fprintf(stderr, "%s:%d: pad must be 0-16\n", argv[1], lineno); return 1; }
                 artifact = !strcmp(mode, "artifact");
                 if (!artifact && strcmp(mode, "mono")) {

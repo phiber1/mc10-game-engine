@@ -194,3 +194,21 @@ Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
   XOR(old, new) per one-pixel step, so no byte is ever blank (no banding)
   and overlaps stay round.  Estimate for the 16x16 ball: ~370 cycles per
   step, but ~11.6K of code for 8 shifts x 8 directions.
+
+### XOR delta sprites (measured, `MODE=3`, spritec `delta`)
+
+| Cycles per sprite | OR + clear | XOR | Self-erasing | XOR delta |
+|---|---|---|---|---|
+| mono, 1 px/frame | 763 | 1,041 | 471 | **682** |
+| mono, 1-3 px/frame (bench default) | 764 | 1,040 | 469 | 1,170 |
+| artifact 8x16, 1 px/frame | 727 | 983 | 507 | **710** |
+| artifact 8x16, 1-3 px/frame | 725 | 981 | 504 | 1,222 |
+
+* One delta routine per (direction, shift): ~330 cycles average (straight
+  up/down ~250, sideways ~360).  Call plus step overhead ~200 more.  Cost
+  scales with pixels moved, so it wins only for slow sprites.
+* Code size: the 16x16 mono ball with all 8 directions is ~15K (the whole
+  m3 build ends at `$A585`, close to the `$AFFF` limit).  The 8x16
+  artifact orb is ~4K.  Restricting directions, or 2-pixel delta routines
+  for fast sprites, are the obvious next options.
+* Correct over long runs: 300 frames, no residue.

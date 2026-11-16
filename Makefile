@@ -57,7 +57,7 @@ build/%.bin: build/%.raw build/mkc10
 
 # Sprite test variants for visual checking: build/sp_<art><mode>.c10
 #   art m = 16x16 mono (shown without artifact colours), a = 8x8 artifact
-#   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing
+#   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing, 3 = XOR delta
 # Sprite counts are chosen to fit in one 60 Hz frame.
 NSPR_m0 := 16
 NSPR_m1 := 12
@@ -65,7 +65,9 @@ NSPR_m2 := 24
 NSPR_a0 := 18
 NSPR_a1 := 14
 NSPR_a2 := 26
-SPVARS  := m0 m1 m2 a0 a1 a2
+NSPR_m3 := 11
+NSPR_a3 := 11
+SPVARS  := m0 m1 m2 m3 a0 a1 a2 a3
 
 variants: $(foreach v,$(SPVARS),build/sp_$(v).c10)
 
