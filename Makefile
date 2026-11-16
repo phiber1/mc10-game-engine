@@ -3,6 +3,7 @@
 #   make                 build every program in bench/ (DEBUG=1 by default)
 #   make DEBUG=0         release build: no debug-port writes
 #   make run-tick        run a program in the emulator (vmc10 --mcx32sd --8k)
+#   make variants        sprite test builds: run-sp_m0 ... run-sp_a2 (see below)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -54,9 +55,33 @@ build/%.c10: build/%.raw build/mkc10
 build/%.bin: build/%.raw build/mkc10
 	build/mkc10 $< $@ $* $(LOAD) $(LOAD)
 
+# Sprite test variants for visual checking: build/sp_<art><mode>.c10
+#   art m = 16x16 mono (shown without artifact colours), a = 8x8 artifact
+#   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing
+# Sprite counts are chosen to fit in one 60 Hz frame.
+NSPR_m0 := 16
+NSPR_m1 := 12
+NSPR_m2 := 24
+NSPR_a0 := 24
+NSPR_a1 := 20
+NSPR_a2 := 32
+SPVARS  := m0 m1 m2 a0 a1 a2
+
+variants: $(foreach v,$(SPVARS),build/sp_$(v).c10)
+
+build/sp_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
+	    -DART=$(if $(findstring a,$*),1,0) -DMODE=$(subst a,,$(subst m,,$*)) \
+	    -DNSPR=$(NSPR_$*) $(CPPDEFS) $< -o $@
+
 # Run in the emulator: CLOADM from the cassette image, then EXEC.
+# Mono programs run with artifact colours off.  DBGLOG=FILE logs the
+# debug port to FILE.
 run-%: build/%.c10
-	$(EMU) --mcx32sd --8k --debug-port BE00 --tape $< --type 'CLOADM\nEXEC\n'
+	$(EMU) --mcx32sd --8k $(if $(findstring _m,$*),--no-artifact) \
+	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
+	    --tape $< --type 'CLOADM\nEXEC\n'
+comma := ,
 
 # Headless: load the raw binary straight into memory and jump to it.
 FRAMES ?= 10
@@ -71,5 +96,5 @@ shot-%: build/%.raw
 clean:
 	rm -rf build
 
-.PHONY: all clean
+.PHONY: all clean variants
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc
