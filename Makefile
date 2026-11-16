@@ -62,14 +62,14 @@ build/%.bin: build/%.raw build/mkc10
 NSPR_m0 := 16
 NSPR_m1 := 12
 NSPR_m2 := 24
-NSPR_a0 := 24
-NSPR_a1 := 20
-NSPR_a2 := 32
+NSPR_a0 := 18
+NSPR_a1 := 14
+NSPR_a2 := 26
 SPVARS  := m0 m1 m2 a0 a1 a2
 
 variants: $(foreach v,$(SPVARS),build/sp_$(v).c10)
 
-build/sp_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) | build
+build/sp_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
 	    -DART=$(if $(findstring a,$*),1,0) -DMODE=$(subst a,,$(subst m,,$*)) \
 	    -DNSPR=$(NSPR_$*) $(CPPDEFS) $< -o $@

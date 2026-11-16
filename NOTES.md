@@ -124,10 +124,10 @@ Erase + move + redraw every sprite every frame, black background:
 |---|---|---|---|
 | 16x16 mono | OR draw, clear erase | ~760 | 18 |
 | 16x16 mono | XOR draw + XOR erase | ~1,040 | 14 |
-| 8x8 artifact | OR draw, clear erase | ~465 | 31 |
-| 8x8 artifact | XOR draw + XOR erase | ~590 | 25 |
+| 8x16 artifact | OR draw, clear erase | ~730 | 20 |
+| 8x16 artifact | XOR draw + XOR erase | ~985 | 15 |
 | 16x16 mono, pad 3 | self-erasing store, no erase | ~463 | 32 |
-| 8x8 artifact, pad 3 | self-erasing store, no erase | ~356 | 41 |
+| 8x16 artifact, pad 3 | self-erasing store, no erase | ~507 | 29 |
 
 Self-erasing (`pad N` in spritec, `MODE=2`): the padded box is stored
 whole, so the border wipes the previous position.  Verified trail-free
@@ -175,3 +175,22 @@ Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
 * Masked draws and backgrounds: row-band compositing like FROGLER, with
   compiled code instead of data-driven loops.
 * Consider a free-running 30 Hz pace (or 20/25 Hz) for heavy scenes.
+
+### Visual testing in the emulator (owner, 2026-11-16)
+
+`make variants`, then `make run-sp_m0` ... `run-sp_a2` (outside the sandbox):
+
+* **Black horizontal bands** about a sprite tall, at random moments, in
+  every erase-then-redraw build (m0, m1, a0, a1): the beam catching a
+  sprite between its erase and redraw.  The TRACE build measured the beam
+  crossing a sprite's rows during that window in ~14% of redraws (an
+  upper bound).  **Gone in the self-erasing builds** (m2, a2).
+* **Overlaps:** OR + clear punches byte-aligned black boxes; XOR keeps
+  balls round (preferred look); self-erasing clips with its border box.
+* **Artifact pixels are 2:1** (128 across the width of 192 rows): artifact
+  art needs twice as many rows as columns to look round.  The test orb is
+  now 8x16, which roughly doubles its cost.
+* Next candidate: **XOR delta sprites**, one read-modify-write pass of
+  XOR(old, new) per one-pixel step, so no byte is ever blank (no banding)
+  and overlaps stay round.  Estimate for the 16x16 ball: ~370 cycles per
+  step, but ~11.6K of code for 8 shifts x 8 directions.

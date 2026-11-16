@@ -17,15 +17,24 @@ XXXXXXXXXXXXXXXX
 .....XXXXXX.....
 end
 
+# Artifact pixels are twice as wide as tall: 8 columns x 16 rows is round.
 sprite orb artifact
-...OOO..
-.OOWWOOO
-.OWWOOOO
+...OO...
+..OOOO..
+.WWOOOO.
+.WWWOOO.
+OWWWOOOO
+OWWOOOOO
+OWWOOOOO
 OOOOOOOB
 OOOOOOOB
-.OOOOOBB
-.OOOOBBB
-...BBB..
+OOOOOOBB
+OOOOOOBB
+OOOOOBBB
+.OOOOBB.
+.OOOBBB.
+..OOBB..
+...BB...
 end
 
 # The same sprites with a 3-pixel blank border, for self-erasing store mode
@@ -49,12 +58,20 @@ XXXXXXXXXXXXXXXX
 end
 
 sprite porb artifact pad 3
-...OOO..
-.OOWWOOO
-.OWWOOOO
+...OO...
+..OOOO..
+.WWOOOO.
+.WWWOOO.
+OWWWOOOO
+OWWOOOOO
+OWWOOOOO
 OOOOOOOB
 OOOOOOOB
-.OOOOOBB
-.OOOOBBB
-...BBB..
+OOOOOOBB
+OOOOOOBB
+OOOOOBBB
+.OOOOBB.
+.OOOBBB.
+..OOBB..
+...BB...
 end

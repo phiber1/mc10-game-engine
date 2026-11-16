@@ -52,7 +52,7 @@ end                         end
 ```
 
 Measured in the emulator, sprites erased, moved and redrawn per 60 Hz frame:
-18 (16x16 mono) or 31 (8x8 artifact) with OR draw and erase; 32 and 41 with
+18 (16x16 mono) or 20 (8x16 artifact) with OR draw and erase; 32 and 29 with
 self-erasing sprites (`pad N`: a blank border wipes the old position, no
 erase pass, and the sprite never disappears).
 
