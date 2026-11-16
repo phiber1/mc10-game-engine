@@ -6,6 +6,8 @@
 ;   ART=1   8x8 artifact-colour sprite ("orb", 128x192 four-colour mode)
 ;   MODE=0  OR draw, clear-to-black erase (fastest; overlaps damage each other)
 ;   MODE=1  XOR draw, XOR erase           (overlaps are safe)
+;   MODE=2  self-erasing: the sprite has a 3-pixel blank border and is
+;           drawn in store mode, so no erase pass (never disappears)
 ;
 ; Debug port: $AA when the sprite pass starts, $BB when it ends.  The dt on
 ; the $BB line is the cycle cost of the whole pass; one frame is 14934.
@@ -26,26 +28,31 @@
 
 #if ART
 #define SPR_CALL spr_art
-#define XMAX (128-orb_W)
-#define YMAX (192-orb_H)
-#if MODE
-#define SPR_DRAW orb_xr
-#define SPR_ERASE orb_xr
+#if MODE == 2
+#define SPR_NAME(s) porb_##s
 #else
-#define SPR_DRAW orb_or
-#define SPR_ERASE orb_er
+#define SPR_NAME(s) orb_##s
 #endif
+#define XMAX (128-SPR_NAME(W))
 #else
 #define SPR_CALL spr_mono
-#define XMAX (256-ball_W)
-#define YMAX (192-ball_H)
-#if MODE
-#define SPR_DRAW ball_xr
-#define SPR_ERASE ball_xr
+#if MODE == 2
+#define SPR_NAME(s) pball_##s
 #else
-#define SPR_DRAW ball_or
-#define SPR_ERASE ball_er
+#define SPR_NAME(s) ball_##s
 #endif
+#define XMAX (256-SPR_NAME(W))
+#endif
+#define YMAX (192-SPR_NAME(H))
+
+#if MODE == 2
+#define SPR_DRAW SPR_NAME(sr)
+#elif MODE == 1
+#define SPR_DRAW SPR_NAME(xr)
+#define SPR_ERASE SPR_NAME(xr)
+#else
+#define SPR_DRAW SPR_NAME(or)
+#define SPR_ERASE SPR_NAME(er)
 #endif
 
                 org     $00A0
@@ -67,10 +74,12 @@ loop:
                 ldx     #objs
 oloop:
                 stx     obj
+#if MODE != 2
                 ldaa    0,x             ; erase at the old position
                 ldab    1,x
                 ldx     #SPR_ERASE
                 jsr     SPR_CALL
+#endif
                 ldx     obj
                 ldaa    0,x             ; x += dx, bounce at the edges
                 adda    2,x

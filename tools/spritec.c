@@ -4,7 +4,7 @@
  *
  * Input: one or more sprites
  *
- *   sprite NAME mono|artifact
+ *   sprite NAME mono|artifact [pad N]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -14,8 +14,11 @@
  *   NAME_or<s>  OR the sprite onto the screen   (transparent; uses A)
  *   NAME_xr<s>  XOR it                           (draw twice = erase; uses A)
  *   NAME_er<s>  clear the bytes NAME_or touches  (erase on black; uses D)
- *   NAME_or, NAME_xr, NAME_er   tables of the 8 (or 4) routine addresses
- *   NAME_W, NAME_H, NAME_SHIFTS
+ *   NAME_sr<s>  with "pad N": store the whole padded box, zeros included.
+ *               The blank border erases the previous position as it draws,
+ *               so a sprite moving at most N pixels a frame needs no erase.
+ *   NAME_or, NAME_xr, NAME_er (, NAME_sr)  tables of the routine addresses
+ *   NAME_W, NAME_H (including the pad), NAME_SHIFTS, NAME_PAD
  *
  * Every routine takes X = screen address of the sprite's top-left byte and
  * returns with X changed.  Rows past the 8th are reached by moving X with
@@ -32,7 +35,7 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, w, h;
+static int artifact, w, h, pad;
 static char art[MAXH][MAXW + 1];
 
 /* the sprite's pixel bits at shift s: row r, byte b */
@@ -54,32 +57,61 @@ static unsigned char sbyte(int r, int s, int b)
     return v;
 }
 
-/* Emit code for one routine.  kind: 'o' or, 'x' xor, 'e' erase */
+/* Load an 8-bit register with v unless it already holds it (-1 = unknown). */
+static int load8(char reg, int *cur, int v)
+{
+    if (*cur == v) return 0;
+    if (v == 0) printf("\tclr%c\n", reg);
+    else printf("\tlda%c\t#$%02X\n", reg, v);
+    *cur = v;
+    return 2;
+}
+
+/* Emit code for one routine.  kind: 'o' or, 'x' xor, 'e' erase,
+ * 's' store (writes every byte of the box, zeros included: with a blank
+ * border this erases the sprite's previous position as it draws) */
 static void routine(int kind, int s)
 {
-    printf("%s_%sr%d:\n", name, kind == 'o' ? "o" : kind == 'x' ? "x" : "e", s);
+    printf("%s_%cr%d:\n", name, kind, s);
     int base = 0;                                   /* screen offset X points at */
     int cycles = 0;
-    if (kind == 'e') { printf("\tclra\n\tclrb\n"); cycles += 4; }
+    int ra = -1, rb = -1;                           /* known A and B contents */
+    if (kind == 'e') { printf("\tclra\n\tclrb\n"); cycles += 4; ra = rb = 0; }
     for (int r = 0; r < h; r++) {
         int nb = nbytes(s);
         for (int b = 0; b < nb; b++) {
             unsigned char v = sbyte(r, s, b);
-            if (!v) continue;
+            if (!v && kind != 's') continue;
             int off = r * 32 + b - base;
-            int pair = kind == 'e' && b + 1 < nb && sbyte(r, s, b + 1);
+            int pair = b + 1 < nb && (kind == 's' || (kind == 'e' && sbyte(r, s, b + 1)));
             int need = pair ? off + 1 : off;
             while (need > 255) {                    /* move X down, whole rows */
                 int st = r * 32 - base;
                 if (st > 224) st = 224;
                 printf("\tldab\t#%d\n\tabx\n", st);
                 cycles += 5;
+                rb = st;
                 base += st;
-                if (kind == 'e') { printf("\tclrb\n"); cycles += 2; }
                 off = r * 32 + b - base;
                 need = pair ? off + 1 : off;
             }
-            if (kind == 'e') {
+            if (kind == 's') {
+                if (pair) {
+                    int lo = sbyte(r, s, b + 1);
+                    if (ra != v && rb != lo && v && lo) {
+                        printf("\tldd\t#$%02X%02X\n", v, lo);
+                        cycles += 3; ra = v; rb = lo;
+                    } else {
+                        cycles += load8('a', &ra, v);
+                        cycles += load8('b', &rb, lo);
+                    }
+                    printf("\tstd\t%d,x\n", off); cycles += 5; b++;
+                } else {
+                    cycles += load8('a', &ra, v);
+                    printf("\tstaa\t%d,x\n", off); cycles += 4;
+                }
+            } else if (kind == 'e') {
+                cycles += load8('b', &rb, 0);       /* an ABX may have used B */
                 if (pair) { printf("\tstd\t%d,x\n", off); cycles += 5; b++; }
                 else { printf("\tstaa\t%d,x\n", off); cycles += 4; }
             } else {
@@ -96,14 +128,35 @@ static void emit(void)
 {
     int shifts = artifact ? 4 : 8;
     printf("\n; ---- sprite %s: %dx%d %s\n", name, w, h, artifact ? "artifact" : "mono");
-    printf("%s_W\tequ\t%d\n%s_H\tequ\t%d\n%s_SHIFTS\tequ\t%d\n", name, w, name, h, name, shifts);
-    const char *kinds = "oxe";
-    for (int k = 0; k < 3; k++) {
+    printf("%s_W\tequ\t%d\n%s_H\tequ\t%d\n%s_SHIFTS\tequ\t%d\n%s_PAD\tequ\t%d\n",
+           name, w, name, h, name, shifts, name, pad);
+    const char *kinds = pad ? "oxes" : "oxe";
+    int nk = (int)strlen(kinds);
+    for (int k = 0; k < nk; k++) {
         printf("%s_%cr:\n", name, kinds[k]);
         for (int s = 0; s < shifts; s++) printf("\tfdb\t%s_%cr%d\n", name, kinds[k], s);
     }
-    for (int k = 0; k < 3; k++)
+    for (int k = 0; k < nk; k++)
         for (int s = 0; s < shifts; s++) routine(kinds[k], s);
+}
+
+/* Surround the art with a blank border of pad pixels on every side. */
+static int apply_pad(void)
+{
+    if (!pad) return 1;
+    if (w + 2 * pad > MAXW || h + 2 * pad > MAXH) return 0;
+    for (int r = h - 1; r >= 0; r--) {
+        memmove(art[r + pad] + pad, art[r], (size_t)w);
+        memset(art[r + pad], '.', (size_t)pad);
+        memset(art[r + pad] + pad + w, '.', (size_t)pad);
+    }
+    for (int r = 0; r < pad; r++) {
+        memset(art[r], '.', MAXW);
+        memset(art[h + pad + r], '.', MAXW);
+    }
+    w += 2 * pad;
+    h += 2 * pad;
+    return 1;
 }
 
 int main(int argc, char **argv)
@@ -118,7 +171,9 @@ int main(int argc, char **argv)
         lineno++;
         line[strcspn(line, "\r\n")] = 0;
         if (!in) {
-            if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
+            pad = 0;
+            if (sscanf(line, "sprite %63s %31s pad %d", name, mode, &pad) >= 2) {
+                if (pad < 0 || pad > 16) { fprintf(stderr, "%s:%d: pad must be 0-16\n", argv[1], lineno); return 1; }
                 artifact = !strcmp(mode, "artifact");
                 if (!artifact && strcmp(mode, "mono")) {
                     fprintf(stderr, "%s:%d: mode must be mono or artifact\n", argv[1], lineno);
@@ -130,6 +185,7 @@ int main(int argc, char **argv)
         }
         if (!strcmp(line, "end")) {
             if (!w || !h) { fprintf(stderr, "%s:%d: empty sprite\n", argv[1], lineno); return 1; }
+            if (!apply_pad()) { fprintf(stderr, "%s:%d: sprite too big with its pad\n", argv[1], lineno); return 1; }
             emit();
             in = 0;
             continue;

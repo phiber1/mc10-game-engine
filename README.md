@@ -42,17 +42,19 @@ Each `bench/NAME.asm` becomes `build/NAME.c10` (for CLOADM) and
 
 `tools/spritec` turns text-art sprites into unrolled 6803 code, one routine
 per sub-byte shift (8 for mono, 4 for artifact), in OR, XOR and erase
-versions:
+versions, plus a self-erasing store version for sprites given a `pad`:
 
 ```
-sprite ball mono            sprite orb artifact
+sprite ball mono            sprite orb artifact pad 2
 .....XXXXXX.....            ...OOO..      . black   O orange
 ...XXXXXXXXXX...            .OOWWOOO      B blue    W white
 end                         end
 ```
 
-Measured in the emulator: about 18 sprites (16x16 mono) or 31 sprites (8x8
-artifact) erased, moved and redrawn per 60 Hz frame.
+Measured in the emulator, sprites erased, moved and redrawn per 60 Hz frame:
+18 (16x16 mono) or 31 (8x8 artifact) with OR draw and erase; 32 and 41 with
+self-erasing sprites (`pad N`: a blank border wipes the old position, no
+erase pass, and the sprite never disappears).
 
 ## Licence
 

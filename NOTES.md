@@ -126,6 +126,14 @@ Erase + move + redraw every sprite every frame, black background:
 | 16x16 mono | XOR draw + XOR erase | ~1,040 | 14 |
 | 8x8 artifact | OR draw, clear erase | ~465 | 31 |
 | 8x8 artifact | XOR draw + XOR erase | ~590 | 25 |
+| 16x16 mono, pad 3 | self-erasing store, no erase | ~463 | 32 |
+| 8x8 artifact, pad 3 | self-erasing store, no erase | ~356 | 41 |
+
+Self-erasing (`pad N` in spritec, `MODE=2`): the padded box is stored
+whole, so the border wipes the previous position.  Verified trail-free
+in screenshots; overlapping sprites clip each other as rectangles.  The
+store routines are bigger: 22x22 mono box = 281-362 cycles per shift
+(3 or 4 bytes wide); the 24-sprite bench binary is 13.7K.
 
 Compiled routines (spritec): 16x16 mono OR draw is 330-450 cycles
 depending on shift; erase 98-152.
@@ -159,7 +167,7 @@ Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
 ### Consequences for this engine
 
 * Beam-independent drawing first; calibration is optional polish.
-* **Self-erasing sprites:** compile each sprite with a blank border as wide
+* **Self-erasing sprites (done, see the table above):** compile each sprite with a blank border as wide
   as its maximum speed and draw it in store mode (`LDD #/STD`, 4
   cycles/byte, no separate erase).  The sprite never disappears, so it
   can't flicker.  Good on black/uniform backgrounds (stars can be redrawn

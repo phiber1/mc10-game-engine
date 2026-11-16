@@ -27,3 +27,34 @@ OOOOOOOB
 .OOOOBBB
 ...BBB..
 end
+
+# The same sprites with a 3-pixel blank border, for self-erasing store mode
+sprite pball mono pad 3
+.....XXXXXX.....
+...XXXXXXXXXX...
+..XXXXXXXXXXXX..
+.XXXX..XXXXXXXX.
+.XXX....XXXXXXX.
+XXXX....XXXXXXXX
+XXXXX..XXXXXXXXX
+XXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXX
+.XXXXXXXXXXXXXX.
+.XXXXXXXXXXXXXX.
+..XXXXXXXXXXXX..
+...XXXXXXXXXX...
+.....XXXXXX.....
+end
+
+sprite porb artifact pad 3
+...OOO..
+.OOWWOOO
+.OWWOOOO
+OOOOOOOB
+OOOOOOOB
+.OOOOOBB
+.OOOOBBB
+...BBB..
+end
