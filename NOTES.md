@@ -212,3 +212,18 @@ Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
   artifact orb is ~4K.  Restricting directions, or 2-pixel delta routines
   for fast sprites, are the obvious next options.
 * Correct over long runs: 300 frames, no residue.
+* **Visual test (owner):** m3 and a3 both clean: no blocking, no banding.
+  Overlaps invert (XOR), as expected.  Artifact sprites look twice as
+  fast horizontally because an artifact pixel is two mono pixels wide;
+  move them half as far in x for the same on-screen speed (which also
+  halves the delta cost).
+
+### Sprite strategy (so far)
+
+Choose per sprite type:
+* **Self-erasing** (`pad N`): cheapest, never flickers; for sprites that
+  don't overlap much, on black or sparse backgrounds.
+* **XOR delta** (`delta`): never flickers, overlaps invert; best for slow
+  sprites (cost per pixel moved), mind the code size of big mono sprites.
+* **Masked + row compositing** (to do): solid overlaps over scenery.
+* Plain OR/XOR erase-then-draw: only where banding doesn't matter.
