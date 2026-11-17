@@ -375,3 +375,20 @@ blue.  `bench/waves.asm` converted:
   aliens' box, drifting at half the alien's speed; the slot stays busy
   (not a target, not free) until it ends.  Fire held: median 9.5K
   cycles, 0 frames over budget.
+
+### Game prototype (`bench/game.asm`)
+
+* Title screen (working title STARFALL) with a colour sample: C runs
+  `col_swap` (engine/colswap.asm: decodes each sprite's halo routines and
+  swaps the bit pairs of every data byte) and swaps the text colour masks.
+* "PLAYER 1" banner at the start and after each lost ship; status line
+  (SCORE in BCD via DAA, SHIPS) redrawn every 12 frames because sprites and
+  stars cross it.
+* Bombs and collisions with aliens destroy the ship (bigger, longer
+  explosion and sound); respawn flashing and untouchable for 2 s; GAME
+  OVER after the last ship, then back to the title.
+* engine/text.asm + font.asm: a 3x5 artifact font, one byte per
+  character (32 per line), normal and double height; generated from glyph
+  art by tools/mkfont.py.
+* Tested headless: swap, start, three deaths, game over, title.  Fire
+  held: median 9.5K cycles, 0.6% of frames over budget.

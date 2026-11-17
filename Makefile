@@ -8,6 +8,7 @@
 #   make run-shooter     playable test: W A S Z / arrows, SPACE fires
 #                        (run-shooterk: with the CPU meter)
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
+#   make run-game        the game prototype: title, score, lives (run-gamek: meter)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -122,6 +123,10 @@ build/shooterk.s: bench/shooter.asm $(ENGINE) $(SPRITES) Makefile | build
 	    $(CPPDEFS) $< -o $@
 
 build/wavesk.s: bench/waves.asm $(ENGINE) $(SPRITES) Makefile | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
+	    $(CPPDEFS) $< -o $@
+
+build/gamek.s: bench/game.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
 	    $(CPPDEFS) $< -o $@
 

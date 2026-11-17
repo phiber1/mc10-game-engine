@@ -32,6 +32,10 @@
 #include "hw.inc"
 #include "macros.inc"
 
+; TXT_AT(row, col): the screen address of a text cell (row in pixel rows,
+; col 0-31).  See text.asm.
+TXT_AT          function row,col,SCREEN+(row)*ROW_BYTES+(col)
+
 STACK_TOP       equ     $5FFF
 CODE            equ     $6000
 
@@ -73,6 +77,17 @@ st_m            rmb     1
 st_seed         rmb     2
 an_obj          rmb     2               ; sprman.asm animation
 an_tmp          rmb     2
+txt_col         rmb     1               ; text.asm: colour mask
+tx_scr          rmb     2
+tx_scr2         rmb     2
+tx_g            rmb     2
+tx_s            rmb     2
+tx_r            rmb     5
+tx_n            rmb     1               ; txt_bcd: number of BCD bytes
+cs_list         rmb     2               ; colswap.asm
+cs_tab          rmb     2
+cs_n            rmb     1
+cs_t            rmb     1
 PROG_DP         equ     *               ; programs' direct-page variables start here
 ; hit_test scratch lives at $00F8-$00FF
 ht_al           equ     $F8             ; visible left, top of a
