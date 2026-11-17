@@ -59,10 +59,9 @@ stars_init:
                 bne     -
                 rts
 
-stars_update:                           ; half the stars each frame
-                ldx     #star_tab
-                ldaa    frame_count
-                bita    #1
+stars_update:                           ; half the stars per call (alternating,
+                ldx     #star_tab       ; so calling it n times a frame makes
+                com     st_half         ; the stars n/2 times as fast)
                 beq     st_loop
                 ldab    #STAR_SIZE      ; odd frames: the odd stars
                 abx

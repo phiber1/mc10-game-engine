@@ -392,3 +392,23 @@ blue.  `bench/waves.asm` converted:
   art by tools/mkfont.py.
 * Tested headless: swap, start, three deaths, game over, title.  Fire
   held: median 9.5K cycles, 0.6% of frames over budget.
+
+### Areas, map, victory warp, jingles
+
+* Four areas, each a wave list (later areas launch faster); when an
+  area's waves are done and no alien is left: AREA CLEARED, +1000, the
+  victory salute, then the warp: the ship (afterburner sprites shipw1/2,
+  alternating flame, halo 1 across / 6 down so each frame covers the
+  other's flame tip at 4 rows a frame) accelerates up, flies off the top,
+  through both gutters, back in at the bottom, and brakes to a stop while
+  the stars streak (stars_update called up to 6 times a frame; it now
+  alternates halves per call).  Then the map and the next area (after the
+  last: round again).  Bosses will go at each area's end.
+* Map screen at the start, after a lost ship and on arriving in an area:
+  PLAYER 1, AREA n, a strip of the areas with boss markers, the ship at
+  its progress.  Play pauses; sound continues.
+* Jingles: start fanfare, fresh-ship phrase, victory salute; a rising
+  noise roar for the afterburner.
+* **Memory is getting tight:** the game ends at $A707 (~2.3K left below
+  $AFFF).  Next step for space: move tables, text and the font to the
+  MCX32-SD's low SRAM ($0400-$1FFF, ~7K), copied there at start.

@@ -41,6 +41,15 @@ OVER_TIME       equ     200             ; "GAME OVER"
 INVULN_TIME     equ     120             ; flashing, untouchable, after a respawn
 STATUS_EVERY    equ     12              ; redraw the status line every n frames
 BANNER_ROW      equ     93
+NAREAS          equ     4
+MODE_PLAY       equ     0
+MODE_SALUTE     equ     1               ; the victory salute
+MODE_WARP       equ     2               ; flying up to the next area
+SALUTE_TIME     equ     110
+MAP_TIME        equ     130             ; frames the map screen stays up
+MAP_SEG         equ     30              ; map rows per area
+MAP_BOTTOM      equ     176             ; the map's bottom row
+MAP_COL         equ     15              ; the map strip's byte column
 
                 org     PROG_DP
 cooldown        rmb     1
@@ -57,6 +66,7 @@ alive           rmb     1               ; aliens on screen
 cy              rmb     1               ; collide: the shot's row + 24
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
+mp_t            rmb     1
 score           rmb     3               ; BCD, 6 digits
 lives           rmb     1
 dead            rmb     1               ; nonzero while the ship is lost
@@ -68,6 +78,13 @@ status_t        rmb     1
 col_o           rmb     1               ; the orange and blue masks (swapped
 col_b           rmb     1               ; by C on the title screen)
 keyprev         rmb     1
+area            rmb     1               ; 0-3
+area_done       rmb     1               ; the area's waves are all launched
+wv_index        rmb     1               ; waves done in this area (the map)
+mode            rmb     1               ; MODE_PLAY, MODE_SALUTE, MODE_WARP
+mode_t          rmb     1
+warpf           rmb     1               ; star updates per frame
+wp_wrapped      rmb     1               ; the warping ship came round the screen
 
                 org     CODE
 start:
@@ -147,16 +164,15 @@ game_start:
                 ldaa    #1
                 staa    status_t
                 jsr     ship_place
-                ldx     #waves          ; first wave, after the banner
-                stx     wv_ptr
-                jsr     wave_begin
-                ldaa    #BANNER_TIME
-                staa    wv_timer
-                ldd     #s_player1
-                jsr     banner_show
-                ldx     #fx_start       ; the start fanfare
+                clr     area
+                clr     mode
+                ldaa    #1
+                staa    warpf
+                ldx     #fx_start       ; the start fanfare, over the map
                 ldaa    #9
                 jsr     snd_play
+                jsr     area_begin
+                jsr     map_show
 loop:
                 jsr     frame_wait
                 METER_ON
@@ -171,7 +187,13 @@ loop:
                 jsr     bombs_logic
                 jsr     shots_logic
                 jsr     collide
-                jsr     stars_update    ; stars first: sprites cover them
+                jsr     victory_check
+                ldab    warpf           ; stars first: sprites cover them
+-               pshb                    ; (several updates a frame at warp)
+                jsr     stars_update
+                pulb
+                decb
+                bne     -
                 jsr     spr_update_all
                 jsr     banner_update
                 jsr     status_update
@@ -207,6 +229,8 @@ wave_begin:
                 rts
 
 wave_logic:
+                tst     area_done
+                bne     wl_done
                 dec     wv_timer
                 bne     wl_done
                 ldaa    wv_left
@@ -258,9 +282,11 @@ wl_next:                                ; next wave when at most 2 remain
 +               ldx     wv_ptr
                 ldab    #W_SIZE
                 abx
+                inc     wv_index
                 ldd     0,x
                 bne     +
-                ldx     #waves          ; end of the table: start again
+                inc     area_done       ; the end of the area's waves
+                rts
 +               stx     wv_ptr
                 ldaa    W_X,x
                 staa    wv_x
@@ -395,7 +421,19 @@ bombs_logic:
 
 ; ---------------------------------------------------------------- ship
 ship_logic:
-                tst     dead
+                ldaa    mode
+                beq     +
+                cmpa    #MODE_SALUTE
+                bne     sl_warp
+                ldx     #ship           ; the salute: hold still
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                dec     mode_t
+                bne     sl_ret
+                jmp     warp_begin
+sl_warp:        jmp     warp_logic
++               tst     dead
                 beq     sl_alive
                 ldx     #ship           ; lost: let the explosion play out
                 ldd     AN_PTR,x
@@ -405,15 +443,14 @@ ship_logic:
                 bne     sl_ret
                 tst     lives
                 beq     sl_over
+                jsr     map_show        ; where we are
                 clr     dead            ; another ship
                 jsr     ship_place
                 ldaa    #INVULN_TIME
                 staa    invuln
                 ldx     #fx_life        ; a fresh ship's phrase
                 ldaa    #9
-                jsr     snd_play
-                ldd     #s_player1
-                jmp     banner_show
+                jmp     snd_play
 sl_over:
                 inc     gover
                 ldd     #s_gameover
@@ -506,6 +543,8 @@ ship_place:                             ; a fresh ship at the bottom centre
 
 ; the ship is hit (unless already lost or flashing)
 ship_hit:
+                tst     mode            ; untouchable during the salute and warp
+                bne     +
                 tst     dead
                 bne     +
                 tst     invuln
@@ -530,6 +569,8 @@ ship_hit:
 ; ---------------------------------------------------------------- shots
 fire_logic:
                 tst     dead
+                bne     fl_done
+                tst     mode
                 bne     fl_done
                 ldaa    cooldown
                 beq     +
@@ -703,6 +744,216 @@ cc_next:
                 cpx     #aliens_end
                 bne     cc_loop
 cc_done:        rts
+
+; ---------------------------------------------------------------- areas
+area_begin:                             ; start the waves of area `area`
+                ldab    area
+                aslb
+                ldx     #areas
+                abx
+                ldx     0,x
+                stx     wv_ptr
+                jsr     wave_begin
+                ldaa    #60
+                staa    wv_timer
+                clr     area_done
+                clr     wv_index
+                rts
+
+; The area is won when all its waves are launched and every alien is gone
+; (later: when its boss is destroyed).
+victory_check:
+                tst     mode
+                bne     vc_done
+                tst     dead
+                bne     vc_done
+                tst     area_done
+                beq     vc_done
+                tst     alive
+                bne     vc_done
+                ldaa    #MODE_SALUTE
+                staa    mode
+                ldaa    #SALUTE_TIME
+                staa    mode_t
+                jsr     score_1000
+                ldx     #fx_salute
+                ldaa    #9
+                jsr     snd_play
+                ldd     #s_cleared
+                jmp     banner_show
+vc_done:        rts
+
+; ---------------------------------------------------------------- warp
+warp_begin:
+                ldaa    #MODE_WARP
+                staa    mode
+                clr     wp_wrapped
+                ldx     #ship
+                jsr     obj_erase       ; (the flame version is a new shape)
+                ldx     #ship
+                ldd     #shipw1_dsc
+                std     O_SPR,x
+                ldx     #fx_warp
+                ldaa    #8
+                jmp     snd_play
+
+warp_logic:
+                ldx     #ship
+                ldaa    frame_count     ; the afterburner flickers
+                anda    #2
+                beq     +
+                ldd     #shipw2_dsc
+                bra     ++
++               ldd     #shipw1_dsc
++               std     O_SPR,x
+                tst     wp_wrapped
+                bne     wl_arrive
+                ldd     O_DY,x          ; climb: accelerate to 4 rows a frame
+                subd    #$0018
+                cmpa    #$FC
+                bge     +
+                ldd     #$FC00
++               std     O_DY,x
+                ldaa    frame_count     ; the stars speed up
+                anda    #7
+                bne     +
+                ldaa    warpf
+                cmpa    #6
+                bcc     +
+                inc     warpf
++               ldaa    O_Y,x           ; came round into the bottom gutter?
+                cmpa    #192
+                bcs     wl_r
+                cmpa    #224
+                bcc     wl_r
+                inc     wp_wrapped
+wl_r:           rts
+wl_arrive:
+                ldaa    O_Y,x           ; arriving from the bottom: brake
+                cmpa    #200
+                bcc     wl_r
+                ldaa    frame_count     ; the stars slow down
+                anda    #3
+                bne     +
+                ldaa    warpf
+                cmpa    #1
+                beq     +
+                dec     warpf
++               ldd     O_DY,x
+                addd    #$0028
+                bmi     +
+                ldd     #0              ; stopped: the next area
+                std     O_DY,x
+                bra     warp_end
++               std     O_DY,x
+                rts
+warp_end:
+                jsr     obj_erase
+                ldx     #ship
+                ldd     #ship_dsc
+                std     O_SPR,x
+                ldaa    #1
+                staa    warpf
+                clr     mode
+                inc     area
+                ldaa    area
+                cmpa    #NAREAS
+                bcs     +
+                clr     area            ; after the last: round again
++               jsr     area_begin
+                jmp     map_show
+
+; ---------------------------------------------------------------- map
+; The map screen: PLAYER 1, the area, a strip of the areas with their
+; checkpoints, and the ship at its progress.  Play is paused meanwhile
+; (sound goes on).
+map_show:
+                jsr     cls
+                ldaa    #TXT_WHITE
+                staa    txt_col
+                ldx     #TXT_AT(16,12)
+                ldd     #s_player
+                jsr     txt_str
+                ldaa    col_o
+                staa    txt_col
+                ldx     #TXT_AT(28,13)
+                ldd     #s_area
+                jsr     txt_str
+                ldaa    area
+                adda    #'1'
+                jsr     txt_char
+                ldx     #TXT_AT(MAP_BOTTOM-NAREAS*MAP_SEG,MAP_COL) ; the strip
+-               ldaa    col_b
+                anda    #$30
+                staa    0,x
+                ldab    #ROW_BYTES
+                abx
+                cpx     #TXT_AT(MAP_BOTTOM,MAP_COL)
+                bne     -
+                ldaa    col_o           ; a checkpoint at the top of each area
+                staa    txt_col
+                ldx     #TXT_AT(MAP_BOTTOM-1*MAP_SEG,MAP_COL)
+                bsr     map_mark
+                ldx     #TXT_AT(MAP_BOTTOM-2*MAP_SEG,MAP_COL)
+                bsr     map_mark
+                ldx     #TXT_AT(MAP_BOTTOM-3*MAP_SEG,MAP_COL)
+                bsr     map_mark
+                ldx     #TXT_AT(MAP_BOTTOM-4*MAP_SEG,MAP_COL)
+                bsr     map_mark
+                ldaa    area            ; the ship: area base + progress
+                inca
+                ldab    #MAP_SEG
+                mul
+                stab    mp_t
+                ldaa    #MAP_BOTTOM+MAP_SEG
+                suba    mp_t
+                suba    #ship_H-ship_PADY
+                ldab    wv_index        ; 6 rows per wave
+                aslb
+                stab    mp_t
+                aslb
+                addb    mp_t
+                stab    mp_t
+                suba    mp_t
+                tab
+                ldaa    #MAP_COL*4-3    ; centred on the strip
+                ldx     #ship_hr
+                jsr     spr_art
+                ldaa    #MAP_TIME
+                staa    mp_t
+-               jsr     frame_wait
+                jsr     snd_frame
+                dec     mp_t
+                bne     -
+                jsr     cls             ; back to play: everything redraws
+                jsr     stars_init
+                ldaa    #1
+                staa    status_t
+                rts
+
+map_mark:                               ; X = row start: a checkpoint marker
+                ldaa    #$FC            ; (a 3-pixel bar, 3 rows)
+                anda    col_o
+                staa    -1+1,x
+                staa    ROW_BYTES,x
+                staa    2*ROW_BYTES,x
+                ldaa    #'B'            ; and a B for the boss beside it
+                ldab    #2
+                abx
+                jmp     txt_char
+
+score_1000:                             ; score += 1000 (BCD)
+                ldaa    score+1
+                adda    #$10
+                daa
+                staa    score+1
+                ldaa    score
+                adca    #0
+                daa
+                staa    score
+                ldaa    #1
+                staa    status_t
+                rts
 
 ; ---------------------------------------------------------------- score
 score_10:                               ; score += 10 (BCD)
@@ -999,20 +1250,49 @@ pcr_rep:        fcb     P_FLY, 40, 0
                 fcb     P_GOTO
                 fdb     pcr_rep
 
-; Waves: descriptor, path; count, launch interval (frames), entry x, x step
-waves:
+; Areas: each a list of waves (descriptor, path; count, launch interval,
+; entry x, x step), ending with fdb 0.  At most 5 waves an area (the map
+; shows 6 rows per wave).  Later areas launch faster and mix more.
+areas:          fdb     area1, area2, area3, area4
+area1:
                 fdb     saucer_dsc, path_loopL
-                fcb     8, 12, 30, 0
-                fdb     dart_dsc, path_zigRL    ; a staggered line, one lane each
-                fcb     8, 16, 15, 12
+                fcb     6, 14, 30, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     6, 16, 21, 12
                 fdb     orbiter_dsc, path_circle
-                fcb     8, 12, 35, 0
+                fcb     6, 14, 35, 0
+                fdb     0
+area2:
                 fdb     saucer_dsc, path_loopR
                 fcb     8, 12, 89, 0
                 fdb     dart_dsc, path_zigLR
                 fcb     8, 16, 103, -12
                 fdb     orbiter_dsc, path_circleR
                 fcb     8, 12, 84, 0
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 12, 30, 0
+                fdb     0
+area3:
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 12, 15, 12
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 10, 35, 0
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 10, 89, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     8, 12, 103, -12
+                fdb     0
+area4:
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 9, 84, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 10, 15, 12
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 9, 30, 0
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 9, 35, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     8, 10, 103, -12
                 fdb     0
 
 ; Explosion: frames of 4 game frames each, then the slot is freed
@@ -1037,6 +1317,13 @@ s_player1:      fdb     TXT_AT(BANNER_ROW,12)
 s_gameover:     fdb     TXT_AT(BANNER_ROW,11)
                 fcc     "GAME OVER"
                 fcb     0
+s_player:       fcc     "PLAYER 1"
+                fcb     0
+s_area:         fcc     "AREA "
+                fcb     0
+s_cleared:      fdb     TXT_AT(BANNER_ROW,10)
+                fcc     "AREA CLEARED"
+                fcb     0
 s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_sub:          fcc     "A TEST OF THE MC-10 ENGINE"
@@ -1052,7 +1339,8 @@ s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
 
 ; Every artifact sprite, for the colour swap
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
-                fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc, 0
+                fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
+                fdb     shipw1_dsc, shipw2_dsc, 0
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -1097,6 +1385,23 @@ fx_life:                                ; a fresh ship, ~0.8 s
                 NOTE    N_A5, 6
                 NOTE    N_B5, 6
                 NOTE    N_D6, 22
+                fcb     0
+fx_salute:                              ; the victory salute, ~1.8 s
+                NOTE    N_G5, 7
+                NOTE    N_G5, 5
+                NOTE    N_G5, 5
+                NOTE    N_C6, 14
+                REST    4
+                NOTE    N_E6, 8
+                NOTE    N_D6, 8
+                NOTE    N_E6, 8
+                NOTE    N_C6, 30
+                fcb     0
+fx_warp:                                ; the afterburner: a rising roar
+                fcb     40, SND_NOISE
+                fdb     900, -12
+                fcb     60, SND_NOISE
+                fdb     420, 0
                 fcb     0
 fx_shipboom:    fcb     6, SND_NOISE    ; the ship: a long, deep explosion
                 fdb     300, 0
@@ -1156,4 +1461,4 @@ objs_end:
 #include "stars.asm"
 #include "text.asm"
 #include "colswap.asm"
-#include "waves_spr.inc"
+#include "game_spr.inc"

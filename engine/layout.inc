@@ -76,6 +76,7 @@ st_ptr          rmb     2               ; stars.asm
 st_a            rmb     2
 st_m            rmb     1
 st_seed         rmb     2
+st_half         rmb     1               ; which half of the stars moves next
 an_obj          rmb     2               ; sprman.asm animation
 an_tmp          rmb     2
 txt_col         rmb     1               ; text.asm: colour mask
