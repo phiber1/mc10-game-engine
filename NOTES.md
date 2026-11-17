@@ -258,3 +258,20 @@ Choose per sprite type:
   (~594 of it the draw).  16 objects = ~11.1K mono / ~10.6K artifact, 74%
   / 71% of a frame.  Possible later saving: cache the draw table and call
   in the object record instead of going through the descriptor.
+
+### Playable test: `bench/shooter.asm` (owner verdict, 2026-11-16)
+
+10 aliens on curving paths at up to 2 px/frame (2-pixel halo), ship at 2
+px/frame (2-pixel halo), shots at 4 px/frame (4-pixel halo on a 2x6
+sprite); ~10.7K cycles per frame median, 12K peak.
+
+* **"Extremely impressive"; it feels like arcade action.**  With the
+  aliens' erratic movement the 2-pixel halos are "acceptable and hardly
+  noticeable".  The shots look right.
+* Conclusion: halo sprites through the sprite manager are the engine's
+  sprite system.  Halo = each type's top speed; 1 pixel for slow objects,
+  2 for fast craft, wider for tiny fast shots.  Row-band compositing is
+  shelved unless big, fast objects need it.
+* Missing for a real game: sound, explosions, a score display (text in
+  RG6), sprites entering/leaving through the screen edges (clipping), and
+  the player's death.
