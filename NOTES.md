@@ -412,3 +412,11 @@ blue.  `bench/waves.asm` converted:
 * **Memory is getting tight:** the game ends at $A707 (~2.3K left below
   $AFFF).  Next step for space: move tables, text and the font to the
   MCX32-SD's low SRAM ($0400-$1FFF, ~7K), copied there at start.
+* **Owner playtest:** finished all four areas to the restart on the third
+  try ("challenging").  Fixes from it: the blast-off now slides behind the
+  status bar (a solid band redrawn after the sprites during the climb),
+  the ship disappears above the top and only rises in from the bottom
+  after the map screen (modes WARP -> COAST -> map -> ARRIVE); waves only
+  launch during play; stars no longer start in a diagonal (st_rnd steps
+  its LFSR 8 bits per byte: single steps made consecutive bytes shifted
+  copies); the colour question appears only before the first game.

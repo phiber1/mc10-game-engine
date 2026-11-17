@@ -44,7 +44,10 @@ BANNER_ROW      equ     93
 NAREAS          equ     4
 MODE_PLAY       equ     0
 MODE_SALUTE     equ     1               ; the victory salute
-MODE_WARP       equ     2               ; flying up to the next area
+MODE_WARP       equ     2               ; blasting off, up behind the status bar
+MODE_COAST      equ     3               ; gone: just the streaking stars
+MODE_ARRIVE     equ     4               ; rising in from the bottom, braking
+COAST_TIME      equ     70
 SALUTE_TIME     equ     110
 MAP_TIME        equ     130             ; frames the map screen stays up
 MAP_SEG         equ     30              ; map rows per area
@@ -79,6 +82,7 @@ status_t        rmb     1
 col_o           rmb     1               ; the orange and blue masks (swapped
 col_b           rmb     1               ; by C on the title screen)
 keyprev         rmb     1
+col_ok          rmb     1               ; the colours were confirmed (first game)
 area            rmb     1               ; 0-3
 area_done       rmb     1               ; the area's waves are all launched
 wv_index        rmb     1               ; waves done in this area (the map)
@@ -123,6 +127,8 @@ t_loop:
                 jsr     frame_wait
                 jsr     snd_frame
                 jsr     kbd_read
+                tst     col_ok          ; asked only before the first game
+                bne     +
                 jsr     key_c           ; C: swap the colours
                 cmpa    keyprev
                 beq     +
@@ -142,6 +148,7 @@ t_loop:
 
 ; ---------------------------------------------------------------- a game
 game_start:
+                inc     col_ok          ; the colours are settled now
                 jsr     cls
                 jsr     stars_init
                 ldx     #objs           ; empty every object slot
@@ -196,7 +203,11 @@ loop:
                 decb
                 bne     -
                 jsr     spr_update_all
-                jsr     banner_update
+                ldaa    mode            ; blasting off: the status bar is a
+                cmpa    #MODE_WARP      ; solid band in front of the ship
+                bne     +
+                jsr     status_band
++               jsr     banner_update
                 jsr     status_update
                 ldaa    #$BB
                 DBGA
@@ -230,6 +241,8 @@ wave_begin:
                 rts
 
 wave_logic:
+                tst     mode
+                bne     wl_done
                 tst     area_done
                 bne     wl_done
                 dec     wv_timer
@@ -433,7 +446,13 @@ ship_logic:
                 dec     mode_t
                 bne     sl_ret
                 jmp     warp_begin
-sl_warp:        jmp     warp_logic
+sl_warp:        cmpa    #MODE_WARP
+                bne     +
+                jmp     warp_logic
++               cmpa    #MODE_COAST
+                bne     +
+                jmp     coast_logic
++               jmp     arrive_logic
 +               tst     dead
                 beq     sl_alive
                 ldx     #ship           ; lost: let the explosion play out
@@ -798,18 +817,10 @@ warp_begin:
                 ldaa    #8
                 jmp     snd_play
 
-warp_logic:
+warp_logic:                             ; blast off: up, behind the status bar
                 ldx     #ship
-                ldaa    frame_count     ; the afterburner flickers
-                anda    #2
-                beq     +
-                ldd     #shipw2_dsc
-                bra     ++
-+               ldd     #shipw1_dsc
-+               std     O_SPR,x
-                tst     wp_wrapped
-                bne     wl_arrive
-                ldd     O_DY,x          ; climb: accelerate to 4 rows a frame
+                bsr     wp_flame
+                ldd     O_DY,x          ; accelerate to 4 rows a frame
                 subd    #$0018
                 cmpa    #$FC
                 bge     +
@@ -822,17 +833,66 @@ warp_logic:
                 cmpa    #6
                 bcc     +
                 inc     warpf
-+               ldaa    O_Y,x           ; came round into the bottom gutter?
-                cmpa    #192
-                bcs     wl_r
++               ldaa    O_Y,x           ; wholly above the top (-32..-22)?
                 cmpa    #224
-                bcc     wl_r
-                inc     wp_wrapped
-wl_r:           rts
-wl_arrive:
-                ldaa    O_Y,x           ; arriving from the bottom: brake
+                bcs     wp_r
+                cmpa    #235
+                bcc     wp_r
+                jsr     obj_erase       ; gone
+                ldx     #ship
+                ldd     #0
+                std     O_SPR,x
+                std     O_DY,x
+                ldaa    #MODE_COAST
+                staa    mode
+                ldaa    #COAST_TIME
+                staa    mode_t
+wp_r:           rts
+
+wp_flame:                               ; X = ship: the afterburner flickers
+                ldaa    frame_count
+                anda    #2
+                beq     +
+                ldd     #shipw2_dsc
+                bra     ++
++               ldd     #shipw1_dsc
++               std     O_SPR,x
+                rts
+
+coast_logic:                            ; just stars for a moment, then the
+                dec     mode_t          ; next area: the map, then the ship
+                bne     wp_r            ; rises in from the bottom
+                inc     area
+                ldaa    area
+                cmpa    #NAREAS
+                bcs     +
+                clr     area            ; after the last: round again
++               jsr     area_begin
+                jsr     map_show
+                ldx     #ship
+                ldaa    #(128-ship_W)/2
+                staa    O_X,x
+                ldaa    #208            ; in the bottom gutter
+                staa    O_Y,x
+                clr     O_XF,x
+                clr     O_YF,x
+                ldd     #0
+                std     O_DX,x
+                ldd     #$FC00
+                std     O_DY,x
+                bsr     wp_flame
+                ldaa    #4
+                staa    warpf
+                ldaa    #MODE_ARRIVE
+                staa    mode
+                rts
+
+arrive_logic:                           ; rise in and brake to a stop
+                ldx     #ship
+                bsr     wp_flame
+                ldaa    O_Y,x
                 cmpa    #200
-                bcc     wl_r
+                bcc     wp_r            ; still below the screen
                 ldaa    frame_count     ; the stars slow down
                 anda    #3
                 bne     +
@@ -843,26 +903,20 @@ wl_arrive:
 +               ldd     O_DY,x
                 addd    #$0028
                 bmi     +
-                ldd     #0              ; stopped: the next area
-                std     O_DY,x
-                bra     warp_end
-+               std     O_DY,x
-                rts
-warp_end:
-                jsr     obj_erase
+                jsr     obj_erase       ; stopped: back to the normal ship
                 ldx     #ship
                 ldd     #ship_dsc
                 std     O_SPR,x
+                ldd     #0
+                std     O_DY,x
                 ldaa    #1
                 staa    warpf
-                clr     mode
-                inc     area
-                ldaa    area
-                cmpa    #NAREAS
-                bcs     +
-                clr     area            ; after the last: round again
-+               jsr     area_begin
-                jmp     map_show
+                clr     mode            ; play: the area's waves begin
+                ldaa    #1
+                staa    status_t
+                rts
++               std     O_DY,x
+                rts
 
 ; ---------------------------------------------------------------- map
 ; The map screen: PLAYER 1, the area, a strip of the areas with their
@@ -1049,6 +1103,22 @@ status_update:
                 jsr     txt_char
 su_done:        rts
 
+status_band:                            ; clear rows 0-7, then the status line
+                ldx     #SCREEN
+                clra
+                clrb
+-               std     0,x
+                std     2,x
+                inx
+                inx
+                inx
+                inx
+                cpx     #SCREEN+8*ROW_BYTES
+                bne     -
+                ldaa    #1
+                staa    status_t
+                jmp     status_update
+
 ; ---------------------------------------------------------------- banner
 ; D = banner (fdb screen address, then the text): show it for BANNER_TIME
 banner_show:
@@ -1098,8 +1168,10 @@ title_draw:
                 ldx     #TXT_AT(50,5)
                 ldd     #s_sub
                 jsr     txt_str
-                ldx     #TXT_AT(92,3)   ; the colour sample: a block that
-                ldab    #10             ; should look orange
+                tst     col_ok          ; the colour sample: only before the
+                bne     td_nosample     ; first game
+                ldx     #TXT_AT(92,3)   ; a block that should look orange
+                ldab    #10
 -               ldaa    col_o
                 staa    0,x
                 staa    1,x
@@ -1116,6 +1188,7 @@ title_draw:
                 ldx     #TXT_AT(100,7)
                 ldd     #s_sample2
                 jsr     txt_str
+td_nosample:
                 ldaa    col_b
                 staa    txt_col
                 ldx     #TXT_AT(140,6)

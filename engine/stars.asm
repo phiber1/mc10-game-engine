@@ -129,10 +129,15 @@ st_place:
 +               staa    st_m
                 rts
 
-st_rnd:                                 ; B = a random byte (16-bit LFSR)
-                ldd     st_seed
-                lsrd
+st_rnd:                                 ; B = a random byte (16-bit LFSR,
+                pshx                    ; stepped 8 bits per byte: one step
+                ldx     #8              ; at a time, consecutive bytes are
+                ldd     st_seed         ; shifted copies of each other and the
+-               lsrd                    ; stars line up diagonally)
                 bcc     +
                 eora    #$B4
-+               std     st_seed
++               dex
+                bne     -
+                std     st_seed
+                pulx
                 rts
