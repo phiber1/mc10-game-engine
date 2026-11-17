@@ -340,3 +340,20 @@ sprite); ~10.7K cycles per frame median, 12K peak.
   dodge through.  Bug: the alive counter was never cleared (worked by
   luck until the direct page moved); the program now clears all its
   variables at start.  Fire held: median 9.8K cycles, 0 frames over.
+
+### Decision: artifact colour (owner, 2026-11-16)
+
+The game is in NTSC artifact colour, 128x192 in black, white, orange and
+blue.  `bench/waves.asm` converted:
+* spritec `halo X Y` (across, down) and per-axis padding; descriptors
+  carry PADX, PADY, VW, VH; hit_test uses both.
+* `FL_HALFX`: flight halves horizontal speed (an artifact pixel is two
+  screen pixels wide), so every path keeps its shape and entry x values
+  simply halve.  A 1-pixel halo across now covers 2 screen pixels of
+  movement; shots and bombs have no horizontal halo at all.
+* Coloured stars: the slow layers are single bits (orange or blue specks),
+  the fast layer white pairs.
+* Result: program 15K -> 9K (4 shifts instead of 8, narrower halos);
+  frame work median 9.8K -> 8.7K, 1 frame of 2,071 over budget.
+* Still to do for colour: a "colours wrong? press a key" phase swap on the
+  title screen (artifact phase varies between machines and power-ups).

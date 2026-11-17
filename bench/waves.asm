@@ -8,19 +8,26 @@
 ; SPACE fires) shoots them; bombs hitting the ship only make a sound (no
 ; death yet).  A star field falls behind everything.
 ;
+;   Artifact colour (128x192, four colours): horizontal speeds are half
+;   the vertical ones, so paths keep their shapes.
+;
 ;   METER=1     CPU meter
 
 #define OBJ_EXTRA 6                     /* = FL_BYTES (flight.asm checks) */
+#define FL_HALFX 1                      /* artifact colour: 128 pixels across */
 #include "layout.inc"
 
 #define NALIEN 10
 #define NBOMB 6
 #define NSHOT 3
 
-SHIP_SPEED      equ     $0200           ; 2 pixels a frame
+SHIP_SPEEDX     equ     $0100           ; 1 artifact pixel (2 screen pixels)
+SHIP_SPEED      equ     $0200           ; 2 rows a frame
 SHOT_SPEED      equ     $0400
 BOMB_SPEED      equ     $0300
-SHIP_XMAX       equ     256-ship_W
+SHIP_XMAX       equ     128-ship_W
+AL_W            equ     saucer_W        ; all alien types share one box size
+AL_H            equ     saucer_H
 SHIP_YMIN       equ     120
 SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
@@ -147,7 +154,7 @@ wave_logic:
                 ldx     obj
                 staa    O_X,x           ; enter just above the top
                 clr     O_XF,x
-                ldab    #256-saucer_H
+                ldab    #256-AL_H
                 stab    O_Y,x
                 clr     O_YF,x
                 ldx     wv_ptr
@@ -213,7 +220,7 @@ al_loop:
 +               ldx     obj             ; safety: mirror off the sides
                 ldd     O_X,x
                 addd    O_DX,x
-                cmpa    #256-saucer_W
+                cmpa    #128-AL_W
                 bcs     +
                 ldaa    #128
                 suba    F_ANG,x
@@ -226,7 +233,7 @@ al_loop:
                 bcs     al_next
                 cmpa    #224
                 bcc     al_next
-                ldaa    #256-saucer_H
+                ldaa    #256-AL_H
                 staa    O_Y,x
 al_next:
                 ldx     obj
@@ -258,9 +265,9 @@ db_done:        rts
 +               stx     obj2
                 ldx     obj
                 ldaa    O_X,x
-                adda    #saucer_PAD+5-bomb_PAD
+                adda    #saucer_PADX+3-bomb_PADX
                 ldab    O_Y,x
-                addb    #saucer_H-saucer_PAD-bomb_PAD
+                addb    #saucer_H-saucer_PADY-bomb_PADY
                 ldx     obj2
                 staa    O_X,x
                 stab    O_Y,x
@@ -307,12 +314,12 @@ ship_logic:
                 ldaa    joy
                 bita    #J_LEFT
                 beq     +
-                ldd     #-SHIP_SPEED
+                ldd     #-SHIP_SPEEDX
                 std     O_DX,x
                 ldaa    joy
 +               bita    #J_RIGHT
                 beq     +
-                ldd     #SHIP_SPEED
+                ldd     #SHIP_SPEEDX
                 std     O_DX,x
                 ldaa    joy
 +               bita    #J_UP
@@ -357,11 +364,11 @@ fire_logic:
                 cpx     #shots_end
                 bne     -
                 rts
-+               ldaa    ship+O_X
-                adda    #ship_PAD+6-shot_PAD
++               ldaa    ship+O_X        ; the nose: column 3 of the ship
+                adda    #ship_PADX+3-shot_PADX
                 staa    O_X,x
                 ldaa    ship+O_Y
-                adda    #ship_PAD-shot_H+shot_PAD
+                adda    #ship_PADY-shot_H+shot_PADY
                 staa    O_Y,x
                 clr     O_XF,x
                 clr     O_YF,x
@@ -640,17 +647,17 @@ pcr_rep:        fcb     P_FLY, 40, 0
 ; Waves: descriptor, path; count, launch interval (frames), entry x, x step
 waves:
                 fdb     saucer_dsc, path_loopL
-                fcb     8, 12, 60, 0
+                fcb     8, 12, 30, 0
                 fdb     dart_dsc, path_zigRL    ; a staggered line, one lane each
-                fcb     8, 16, 30, 24
+                fcb     8, 16, 15, 12
                 fdb     orbiter_dsc, path_circle
-                fcb     8, 12, 70, 0
+                fcb     8, 12, 35, 0
                 fdb     saucer_dsc, path_loopR
-                fcb     8, 12, 178, 0
+                fcb     8, 12, 89, 0
                 fdb     dart_dsc, path_zigLR
-                fcb     8, 16, 206, -24
+                fcb     8, 16, 103, -12
                 fdb     orbiter_dsc, path_circleR
-                fcb     8, 12, 168, 0
+                fcb     8, 12, 84, 0
                 fdb     0
 
 ; Sound effects
@@ -706,7 +713,7 @@ shots:
                 endm
 shots_end:
 ship:
-                fcb     (256-ship_W)/2&$FE, 0, 160, 0
+                fcb     (128-ship_W)/2, 0, 160, 0
                 fdb     0, 0, ship_dsc
                 fcb     0, 0, 0, 0, 0, 0
 objs_end:

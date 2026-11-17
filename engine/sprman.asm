@@ -21,8 +21,9 @@
 ;   fdb NAME_hr     draw table (halo routines; any spritec table works)
 ;   fdb NAME_er     erase table
 ;   fdb spr_mono    call: spr_mono or spr_art
-;   fcb PAD, VW, VH halo padding, visible width and height (for hit_test;
-;                   optional for objects that never collide)
+;   fcb PADX, PADY, VW, VH  halo padding across and down, visible width
+;                   and height (for hit_test; optional for objects that
+;                   never collide)
 ;
 ; hit_test        ht_a, ht_b = objects: carry set if their visible boxes
 ;                 overlap.  Uses A, B, X.
@@ -40,9 +41,10 @@ OBJ_SIZE        equ     10+OBJ_EXTRA    ; #define OBJ_EXTRA n for n game bytes
 D_DRAW          equ     0
 D_ERASE         equ     2
 D_CALL          equ     4
-D_PAD           equ     6
-D_VW            equ     7
-D_VH            equ     8
+D_PADX          equ     6
+D_PADY          equ     7
+D_VW            equ     8
+D_VH            equ     9
 
 spr_update_all:
                 ldd     #0              ; no descriptor cached yet
@@ -107,8 +109,8 @@ hit_test:
                 ldaa    O_X,x
                 ldab    O_Y,x
                 ldx     O_SPR,x
-                adda    D_PAD,x         ; a's visible left, top
-                addb    D_PAD,x
+                adda    D_PADX,x        ; a's visible left, top
+                addb    D_PADY,x
                 std     ht_al
                 ldaa    D_VW,x
                 ldab    D_VH,x
@@ -117,8 +119,8 @@ hit_test:
                 ldaa    O_X,x
                 ldab    O_Y,x
                 ldx     O_SPR,x
-                adda    D_PAD,x         ; b's visible left, top
-                addb    D_PAD,x
+                adda    D_PADX,x        ; b's visible left, top
+                addb    D_PADY,x
                 std     ht_bl
                 ldaa    ht_al           ; x axis
                 suba    ht_bl

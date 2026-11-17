@@ -19,6 +19,9 @@
 #ifndef OBJ_EXTRA
 #define OBJ_EXTRA 0
 #endif
+#ifndef FL_HALFX
+#define FL_HALFX 0
+#endif
 #ifndef DEBUG_TICK
 #define DEBUG_TICK 0
 #endif

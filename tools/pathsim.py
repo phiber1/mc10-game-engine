@@ -9,7 +9,7 @@ SIN = [int(512.0 * math.sin(i * math.pi / 128.0)) for i in range(256)]
 
 def s16(v): return v - 65536 if v & 0x8000 else v
 
-def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0):
+def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0, halfx=False, xmax=256):
     """script: list of tuples like ('fly', n, turn), ('head', a), ('speed', s),
     ('goto', index), ('event', n), ('turnby', n).  Positions are 8.8."""
     x, y = x0 << 8, y0 << 8
@@ -29,11 +29,13 @@ def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0):
         cnt -= 1
         ang = (ang + turn) & 255
         dx, dy = SIN[(ang + 64) & 255] >> spd, SIN[ang] >> spd
+        if halfx: dx >>= 1
         # game logic: side safety (mirror), wrap through the bottom
         nx = ((x + dx) >> 8) & 255
-        if nx >= 256 - box_w:
+        if nx >= xmax - box_w:
             side_hits.append(f); ang = (128 - ang) & 255
             dx, dy = SIN[(ang + 64) & 255] >> spd, SIN[ang] >> spd
+            if halfx: dx >>= 1
         x = (x + dx) & 0xFFFF
         y = (y + dy) & 0xFFFF
         yp = y >> 8

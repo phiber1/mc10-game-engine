@@ -103,15 +103,25 @@ st_next:
                 bcs     st_loop
                 rts
 
-; st_a += random column (0-31); st_m = a random bit
+; st_a += random column (0-31); st_m = the star's pixel: for the slower
+; layers (S_SPD < $C0) a single random bit, which artifact colour shows as
+; an orange or a blue speck; for the fastest layer a bit pair, white.
 st_place:
                 bsr     st_rnd
                 andb    #31
                 addb    st_a+1          ; row starts are multiples of 32
                 stab    st_a+1
                 bsr     st_rnd
-                andb    #7
+                ldx     st_ptr
+                ldaa    S_SPD,x
+                cmpa    #$C0
+                bcc     +
+                andb    #7              ; a single bit
                 ldaa    #$80
+                bra     ++
++               andb    #6              ; a pair: bit position 0, 2, 4, 6
+                ldaa    #$C0
++
 -               tstb
                 beq     +
                 lsra

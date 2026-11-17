@@ -7,6 +7,8 @@
 ;
 ; Headings are 0-255: 0 = right, 64 = down, 128 = left, 192 = up.
 ; Speeds: 0 = 2 px/frame, 1 = 1 px/frame, 2 = 0.5 px/frame.
+; #define FL_HALFX 1 for artifact mode: horizontal speed is halved, since an
+; artifact pixel is two screen pixels wide (paths keep their shapes).
 ;
 ; Object fields (game bytes from O_USER; #define OBJ_EXTRA >= FL_BYTES):
 F_ANG           equ     O_USER          ; heading
@@ -135,6 +137,10 @@ fl_velocity:
                 bsr     fl_sin
                 ldx     fl_obj
                 bsr     fl_scale
+                if      FL_HALFX        ; artifact pixels are twice as wide:
+                asra                    ; half the speed across keeps paths'
+                rorb                    ; shapes (and circles round)
+                endif
                 std     O_DX,x
                 ldab    F_ANG,x         ; dy = 2 sin
                 bsr     fl_sin

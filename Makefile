@@ -105,7 +105,7 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 # Mono programs run with artifact colours off.  DBGLOG=FILE logs the
 # debug port to FILE.
 run-%: build/%.c10
-	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter% waves%,$*),--no-artifact) \
+	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --tape $< --type 'CLOADM\nEXEC\n'
 comma := ,

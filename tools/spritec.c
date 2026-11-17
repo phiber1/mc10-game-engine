@@ -4,7 +4,7 @@
  *
  * Input: one or more sprites
  *
- *   sprite NAME mono|artifact [pad N] [halo N] [delta]
+ *   sprite NAME mono|artifact [pad N] [halo N | halo X Y] [delta]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -31,7 +31,9 @@
  *               read-modify-write pass, so the sprite is never missing.
  *               Tables NAME_dt (9 pointers) -> NAME_dt<d> (one per shift).
  *               Call through spr_mono_d / spr_art_d with the OLD x, y.
- *   NAME_W, NAME_H (including the pad), NAME_SHIFTS, NAME_PAD
+ *   NAME_W, NAME_H (including the pad), NAME_SHIFTS, NAME_PAD (= NAME_PADX),
+ *   NAME_PADX, NAME_PADY.  "halo X Y" grows the halo X pixels across and
+ *   Y rows down (artifact sprites: move half as far across as down).
  *
  * Every routine takes X = screen address of the sprite's top-left byte and
  * returns with X changed.  Rows past the 8th are reached by moving X with
@@ -48,7 +50,7 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, w, h, pad, delta, halo;
+static int artifact, w, h, pad, padx, pady, delta, halo, halox, haloy;
 static char art[MAXH][MAXW + 1];
 static unsigned char hal[MAXH][MAXW];   /* halo: sprite grown by `halo` pixels */
 
@@ -93,8 +95,8 @@ static void build_halo(void)
     for (int r = 0; r < h; r++)
         for (int c = 0; c < w; c++) {
             if (art[r][c] == '.' || art[r][c] == ' ') continue;
-            for (int dr = -halo; dr <= halo; dr++)
-                for (int dc = -halo; dc <= halo; dc++) {
+            for (int dr = -haloy; dr <= haloy; dr++)
+                for (int dc = -halox; dc <= halox; dc++) {
                     int rr = r + dr, cc = c + dc;
                     if (rr >= 0 && rr < h && cc >= 0 && cc < w) hal[rr][cc] = 1;
                 }
@@ -249,7 +251,8 @@ static void emit(void)
     int shifts = artifact ? 4 : 8;
     printf("\n; ---- sprite %s: %dx%d %s\n", name, w, h, artifact ? "artifact" : "mono");
     printf("%s_W\tequ\t%d\n%s_H\tequ\t%d\n%s_SHIFTS\tequ\t%d\n%s_PAD\tequ\t%d\n",
-           name, w, name, h, name, shifts, name, pad);
+           name, w, name, h, name, shifts, name, padx);
+    printf("%s_PADX\tequ\t%d\n%s_PADY\tequ\t%d\n", name, padx, name, pady);
     /* halo sprites only need their halo and erase routines */
     const char *kinds = halo ? "eh" : pad ? "oxes" : "oxe";
     int nk = (int)strlen(kinds);
@@ -265,28 +268,29 @@ static void emit(void)
         int bpp = artifact ? 2 : 1;
         printf("%s_dsc:\n\tfdb\t%s_hr, %s_er, %s\n", name, name, name,
                artifact ? "spr_art" : "spr_mono");
-        printf("\tfcb\t%d, %d, %d\t\t; pad, visible width, height\n",
-               pad, w - 2 * pad, h - 2 * pad);
+        printf("\tfcb\t%d, %d, %d, %d\t; pad x, pad y, visible width, height\n",
+               padx, pady, w - 2 * padx, h - 2 * pady);
         (void)bpp;
     }
 }
 
-/* Surround the art with a blank border of pad pixels on every side. */
+/* Surround the art with a blank border: padx pixels left and right, pady
+ * rows above and below. */
 static int apply_pad(void)
 {
-    if (!pad) return 1;
-    if (w + 2 * pad > MAXW || h + 2 * pad > MAXH) return 0;
+    if (!padx && !pady) return 1;
+    if (w + 2 * padx > MAXW || h + 2 * pady > MAXH) return 0;
     for (int r = h - 1; r >= 0; r--) {
-        memmove(art[r + pad] + pad, art[r], (size_t)w);
-        memset(art[r + pad], '.', (size_t)pad);
-        memset(art[r + pad] + pad + w, '.', (size_t)pad);
+        memmove(art[r + pady] + padx, art[r], (size_t)w);
+        memset(art[r + pady], '.', (size_t)padx);
+        memset(art[r + pady] + padx + w, '.', (size_t)padx);
     }
-    for (int r = 0; r < pad; r++) {
+    for (int r = 0; r < pady; r++) {
         memset(art[r], '.', MAXW);
-        memset(art[h + pad + r], '.', MAXW);
+        memset(art[h + pady + r], '.', MAXW);
     }
-    w += 2 * pad;
-    h += 2 * pad;
+    w += 2 * padx;
+    h += 2 * pady;
     return 1;
 }
 
@@ -302,17 +306,28 @@ int main(int argc, char **argv)
         lineno++;
         line[strcspn(line, "\r\n")] = 0;
         if (!in) {
-            pad = 0; delta = 0; halo = 0;
+            pad = padx = pady = 0; delta = 0; halo = halox = haloy = 0;
             if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
-                /* options after the mode, in any order: pad N, delta */
-                char *opt = strstr(line, mode) + strlen(mode);
-                for (char *t = strtok(opt, " \t"); t; t = strtok(NULL, " \t")) {
-                    if (!strcmp(t, "delta")) delta = 1;
-                    else if (!strcmp(t, "halo") && (t = strtok(NULL, " \t"))) pad = halo = atoi(t);
-                    else if (!strcmp(t, "pad") && (t = strtok(NULL, " \t"))) pad = atoi(t);
-                    else { fprintf(stderr, "%s:%d: unknown option %s\n", argv[1], lineno, t); return 1; }
+                /* options after the mode, in any order:
+                 * pad N, halo N, halo X Y (across, down), delta */
+                char *opt = strstr(line, mode) + strlen(mode), *tok[16];
+                int nt = 0;
+                for (char *t = strtok(opt, " \t"); t && nt < 16; t = strtok(NULL, " \t")) tok[nt++] = t;
+                for (int i = 0; i < nt; i++) {
+                    if (!strcmp(tok[i], "delta")) delta = 1;
+                    else if (!strcmp(tok[i], "halo") && i + 1 < nt) {
+                        halo = 1;
+                        halox = haloy = atoi(tok[++i]);
+                        if (i + 1 < nt && isdigit((unsigned char)tok[i + 1][0])) haloy = atoi(tok[++i]);
+                        padx = halox; pady = haloy; pad = halox;
+                    }
+                    else if (!strcmp(tok[i], "pad") && i + 1 < nt) pad = padx = pady = atoi(tok[++i]);
+                    else { fprintf(stderr, "%s:%d: bad option %s\n", argv[1], lineno, tok[i]); return 1; }
                 }
-                if (pad < 0 || pad > 16) { fprintf(stderr, "%s:%d: pad must be 0-16\n", argv[1], lineno); return 1; }
+                if (padx < 0 || padx > 16 || pady < 0 || pady > 16) {
+                    fprintf(stderr, "%s:%d: pad and halo must be 0-16\n", argv[1], lineno);
+                    return 1;
+                }
                 artifact = !strcmp(mode, "artifact");
                 if (!artifact && strcmp(mode, "mono")) {
                     fprintf(stderr, "%s:%d: mode must be mono or artifact\n", argv[1], lineno);
