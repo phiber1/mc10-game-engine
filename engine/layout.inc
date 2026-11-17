@@ -31,6 +31,7 @@
 
 #include "hw.inc"
 #include "macros.inc"
+#include "notes.inc"
 
 ; TXT_AT(row, col): the screen address of a text cell (row in pixel rows,
 ; col 0-31).  See text.asm.

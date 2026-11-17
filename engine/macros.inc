@@ -56,3 +56,17 @@ VDG_SET         macro
                 staa    VDG
                 cli
                 endm
+
+; Music for the sound sequencer (sound.asm): notes from notes.inc.
+; NOTE pitch, frames   a note, its last 2 frames silent (articulation)
+; REST frames          silence
+NOTE            macro   pitch,frames
+                fcb     (frames)-2, SND_TONE
+                fdb     pitch, 0
+                fcb     2, SND_REST
+                fdb     0, 0
+                endm
+REST            macro   frames
+                fcb     frames, SND_REST
+                fdb     0, 0
+                endm

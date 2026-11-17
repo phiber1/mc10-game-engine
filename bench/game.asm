@@ -154,6 +154,9 @@ game_start:
                 staa    wv_timer
                 ldd     #s_player1
                 jsr     banner_show
+                ldx     #fx_start       ; the start fanfare
+                ldaa    #9
+                jsr     snd_play
 loop:
                 jsr     frame_wait
                 METER_ON
@@ -406,6 +409,9 @@ ship_logic:
                 jsr     ship_place
                 ldaa    #INVULN_TIME
                 staa    invuln
+                ldx     #fx_life        ; a fresh ship's phrase
+                ldaa    #9
+                jsr     snd_play
                 ldd     #s_player1
                 jmp     banner_show
 sl_over:
@@ -1074,6 +1080,23 @@ fx_boom:        fcb     4, SND_NOISE
                 fcb     0
 fx_drop:        fcb     6, SND_TONE     ; a short falling blip
                 fdb     700, 60
+                fcb     0
+; Jingles (priority 9: nothing interrupts them)
+fx_start:                               ; the start fanfare, ~1.6 s
+                NOTE    N_C5, 7
+                NOTE    N_E5, 7
+                NOTE    N_G5, 7
+                NOTE    N_C6, 14
+                REST    4
+                NOTE    N_A5, 7
+                NOTE    N_B5, 7
+                NOTE    N_C6, 28
+                fcb     0
+fx_life:                                ; a fresh ship, ~0.8 s
+                NOTE    N_G5, 6
+                NOTE    N_A5, 6
+                NOTE    N_B5, 6
+                NOTE    N_D6, 22
                 fcb     0
 fx_shipboom:    fcb     6, SND_NOISE    ; the ship: a long, deep explosion
                 fdb     300, 0
