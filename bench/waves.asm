@@ -25,6 +25,9 @@ SHIP_YMIN       equ     120
 SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
 WAVE_GAP        equ     90              ; frames between waves
+SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
+SPRAY_OFF       equ     80              ; then a quiet spell of 80
+BOMB_GAP        equ     7               ; at least 7 frames between bombs
 
                 org     PROG_DP
 cooldown        rmb     1
@@ -34,6 +37,9 @@ obj2            rmb     2
 wv_ptr          rmb     2               ; current wave
 wv_left         rmb     1               ; aliens still to launch
 wv_timer        rmb     1               ; frames to the next launch / wave
+wv_x            rmb     1               ; entry x of the next launch
+bomb_cd         rmb     1               ; frames until another bomb may drop
+spray_t         rmb     1               ; bomb rhythm: spray, then quiet
 alive           rmb     1               ; aliens on screen
 hits            rmb     2               ; aliens destroyed
 ouch            rmb     1               ; bombs that hit the ship
@@ -49,6 +55,11 @@ start:
                 staa    VDG
                 staa    vdg_shadow
                 jsr     cls
+                ldx     #PROG_DP        ; clear all of this program's variables
+-               clr     0,x
+                inx
+                cpx     #ht_al
+                bne     -
                 ldd     FRC
                 orab    #1
                 std     seed
@@ -56,6 +67,8 @@ start:
                 jsr     stars_init
                 clr     cooldown
                 clr     ouch
+                clr     bomb_cd
+                clr     spray_t
                 ldd     #0
                 std     hits
                 ldx     #objs
@@ -88,17 +101,21 @@ loop:
                 bra     loop
 
 ; ---------------------------------------------------------------- waves
-; A wave: fdb descriptor, script; fcb count, launch interval, entry x.
-; The table ends with fdb 0 (back to the start).
+; A wave: fdb descriptor, script; fcb count, launch interval, entry x,
+; x step (added to the entry x after each launch, signed: spreads the
+; wave across the screen).  The table ends with fdb 0 (back to the start).
 W_DESC          equ     0
 W_PATH          equ     2
 W_COUNT         equ     4
 W_GAP           equ     5
 W_X             equ     6
-W_SIZE          equ     7
+W_XSTEP         equ     7
+W_SIZE          equ     8
 
 wave_begin:
                 ldx     wv_ptr
+                ldaa    W_X,x
+                staa    wv_x
                 ldaa    W_COUNT,x
                 staa    wv_left
                 ldaa    #1
@@ -121,9 +138,12 @@ wave_logic:
                 rts
 +               stx     obj
                 ldx     wv_ptr
-                ldaa    W_X,x
                 ldab    W_GAP,x
                 stab    wv_timer
+                ldaa    wv_x            ; this alien's entry x; the next one's
+                tab                     ; is W_XSTEP further across
+                addb    W_XSTEP,x
+                stab    wv_x
                 ldx     obj
                 staa    O_X,x           ; enter just above the top
                 clr     O_XF,x
@@ -158,6 +178,8 @@ wl_next:                                ; next wave when at most 2 remain
                 bne     +
                 ldx     #waves          ; end of the table: start again
 +               stx     wv_ptr
+                ldaa    W_X,x
+                staa    wv_x
                 ldaa    W_COUNT,x
                 staa    wv_left
                 ldaa    #WAVE_GAP
@@ -166,7 +188,15 @@ wl_next:                                ; next wave when at most 2 remain
 
 ; ---------------------------------------------------------------- aliens
 aliens_logic:
-                ldaa    ship+O_X        ; the aim target: the ship
+                ldaa    bomb_cd         ; bomb rhythm
+                beq     +
+                dec     bomb_cd
++               inc     spray_t
+                ldaa    spray_t
+                cmpa    #SPRAY_ON+SPRAY_OFF
+                bcs     +
+                clr     spray_t
++               ldaa    ship+O_X        ; the aim target: the ship
                 staa    fl_tx
                 ldaa    ship+O_Y
                 staa    fl_ty
@@ -208,6 +238,11 @@ al_next:
 
 ; drop a bomb from the alien at obj, if it's on screen above the ship
 drop_bomb:
+                ldaa    bomb_cd         ; too soon after the last bomb?
+                bne     db_done
+                ldaa    spray_t         ; in a spray window?
+                cmpa    #SPRAY_ON
+                bcc     db_done
                 ldx     obj
                 ldaa    O_Y,x
                 cmpa    #SHIP_YMIN-16
@@ -237,6 +272,8 @@ db_done:        rts
                 std     O_DY,x
                 ldd     #bomb_dsc
                 std     O_SPR,x
+                ldaa    #BOMB_GAP
+                staa    bomb_cd
                 ldx     #fx_drop
                 ldaa    #1
                 jmp     snd_play
@@ -600,20 +637,20 @@ pcr_rep:        fcb     P_FLY, 40, 0
                 fcb     P_GOTO
                 fdb     pcr_rep
 
-; Waves: descriptor, path; count, launch interval (frames), entry x
+; Waves: descriptor, path; count, launch interval (frames), entry x, x step
 waves:
                 fdb     saucer_dsc, path_loopL
-                fcb     8, 12, 60
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 10, 40
+                fcb     8, 12, 60, 0
+                fdb     dart_dsc, path_zigRL    ; a staggered line, one lane each
+                fcb     8, 16, 30, 24
                 fdb     orbiter_dsc, path_circle
-                fcb     8, 12, 70
+                fcb     8, 12, 70, 0
                 fdb     saucer_dsc, path_loopR
-                fcb     8, 12, 178
+                fcb     8, 12, 178, 0
                 fdb     dart_dsc, path_zigLR
-                fcb     8, 10, 198
+                fcb     8, 16, 206, -24
                 fdb     orbiter_dsc, path_circleR
-                fcb     8, 12, 168
+                fcb     8, 12, 168, 0
                 fdb     0
 
 ; Sound effects

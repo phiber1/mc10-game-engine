@@ -333,3 +333,10 @@ sprite); ~10.7K cycles per frame median, 12K peak.
   when consecutive objects share a type; collisions use a tight quick-
   reject loop.  Frame with 10 aliens, 6 bombs, 3 shots, 18 stars, sound,
   fire held: median 11.8K cycles, 2% of frames over budget.
+* **Second tuning round (owner):** bombs now come in sprays (48-frame
+  windows with at least 7 frames between bombs, then 80 quiet frames)
+  instead of streams; dart waves enter as a staggered line (x step 24 per
+  launch, 16-frame intervals), one zigzag lane each, so there are gaps to
+  dodge through.  Bug: the alive counter was never cleared (worked by
+  luck until the direct page moved); the program now clears all its
+  variables at start.  Fire held: median 9.8K cycles, 0 frames over.
