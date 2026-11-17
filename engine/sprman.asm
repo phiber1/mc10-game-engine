@@ -147,3 +147,58 @@ hit_test:
 ht_miss:
                 clc
                 rts
+
+; ---------------------------------------------------------------- animation
+; An object can play a list of frames (an explosion, say):
+;
+;   fdb DESC        sprite descriptor for this frame
+;   fcb FRAMES      how many frames to show it
+;   ...
+;   fdb 0           end: the object is erased and freed
+;
+; The animation state lives in the object's game bytes at AN_BASE
+; (#define AN_BASE n before layout.inc; it needs 3 bytes).  AN_PTR is 0
+; while an object isn't animating.
+;
+; obj_anim_start  X = object, D = frame list: erase its current image and
+;                 start the list
+; obj_anim_step   X = object: count down; on a frame change erase and
+;                 switch sprite.  Carry set when the list ended (the object
+;                 is now free).  Uses A, B, X.
+AN_PTR          equ     O_USER+AN_BASE  ; current entry of the frame list
+AN_CNT          equ     O_USER+AN_BASE+2 ; frames left in this one
+
+obj_anim_start:
+                stx     an_obj
+                std     AN_PTR,x
+                jsr     obj_erase       ; the old image goes
+                ldx     an_obj
+                bra     an_load
+obj_anim_step:
+                stx     an_obj
+                dec     AN_CNT,x
+                bne     an_keep
+                jsr     obj_erase       ; frame change: erase, then next entry
+                ldx     an_obj
+                ldd     AN_PTR,x
+                addd    #3
+                std     AN_PTR,x
+an_load:
+                ldx     AN_PTR,x
+                ldd     0,x
+                beq     an_end
+                std     an_tmp
+                ldaa    2,x
+                ldx     an_obj
+                staa    AN_CNT,x
+                ldd     an_tmp
+                std     O_SPR,x
+an_keep:        clc
+                rts
+an_end:
+                ldx     an_obj          ; the end: free the object
+                ldd     #0
+                std     O_SPR,x
+                std     AN_PTR,x
+                sec
+                rts

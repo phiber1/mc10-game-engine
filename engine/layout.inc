@@ -19,6 +19,9 @@
 #ifndef OBJ_EXTRA
 #define OBJ_EXTRA 0
 #endif
+#ifndef AN_BASE
+#define AN_BASE 0
+#endif
 #ifndef FL_HALFX
 #define FL_HALFX 0
 #endif
@@ -68,6 +71,8 @@ st_ptr          rmb     2               ; stars.asm
 st_a            rmb     2
 st_m            rmb     1
 st_seed         rmb     2
+an_obj          rmb     2               ; sprman.asm animation
+an_tmp          rmb     2
 PROG_DP         equ     *               ; programs' direct-page variables start here
 ; hit_test scratch lives at $00F8-$00FF
 ht_al           equ     $F8             ; visible left, top of a

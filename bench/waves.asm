@@ -13,7 +13,8 @@
 ;
 ;   METER=1     CPU meter
 
-#define OBJ_EXTRA 6                     /* = FL_BYTES (flight.asm checks) */
+#define OBJ_EXTRA 9                     /* flight (6) + animation (3) */
+#define AN_BASE 6                       /* animation bytes after flight's */
 #define FL_HALFX 1                      /* artifact colour: 128 pixels across */
 #include "layout.inc"
 
@@ -212,6 +213,17 @@ al_loop:
                 stx     obj
                 ldd     O_SPR,x
                 beq     al_next
+                ldd     AN_PTR,x        ; exploding?
+                beq     al_live
+                ldd     O_X,x           ; drift, but not off the sides
+                addd    O_DX,x
+                cmpa    #128-AL_W
+                bcs     +
+                ldd     #0
+                std     O_DX,x
++               jsr     obj_anim_step   ; next frame; frees the slot at the end
+                bra     al_next
+al_live:
                 jsr     fl_step
                 ldaa    fl_event        ; event 1: drop a bomb
                 cmpa    #1
@@ -419,6 +431,8 @@ cs_loop:
 ca_loop:                                ; tight: most pairs are rejected here
                 ldd     O_SPR,x
                 beq     ca_next
+                ldd     AN_PTR,x        ; already exploding
+                bne     ca_next
                 ldaa    cy              ; within 24 rows of the shot?
                 suba    O_Y,x
                 cmpa    #48
@@ -432,11 +446,13 @@ ca_loop:                                ; tight: most pairs are rejected here
                 ldx     ht_a
                 ldd     #0
                 std     O_SPR,x
-                ldx     ht_b
-                jsr     obj_erase
-                ldx     ht_b
-                ldd     #0
-                std     O_SPR,x
+                ldx     ht_b            ; the alien explodes, drifting on at
+                asr     O_DX,x          ; half its speed
+                ror     O_DX+1,x
+                asr     O_DY,x
+                ror     O_DY+1,x
+                ldd     #anim_boom
+                jsr     obj_anim_start
                 dec     alive
                 ldd     hits
                 addd    #1
@@ -660,6 +676,17 @@ waves:
                 fcb     8, 12, 84, 0
                 fdb     0
 
+; Explosion: frames of 4 game frames each, then the slot is freed
+anim_boom:      fdb     boom1_dsc
+                fcb     4
+                fdb     boom2_dsc
+                fcb     4
+                fdb     boom3_dsc
+                fcb     5
+                fdb     boom4_dsc
+                fcb     6
+                fdb     0
+
 ; Sound effects
 fx_zap:         fcb     8, SND_TONE
                 fdb     450, 70
@@ -699,23 +726,23 @@ star_end:
 objs:
 aliens:
                 rept    NALIEN
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 aliens_end:
 bombs:
                 rept    NBOMB
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 bombs_end:
 shots:
                 rept    NSHOT
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 shots_end:
 ship:
                 fcb     (128-ship_W)/2, 0, 160, 0
                 fdb     0, 0, ship_dsc
-                fcb     0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0
 objs_end:
 
 #include "frame.asm"

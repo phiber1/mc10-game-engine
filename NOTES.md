@@ -364,3 +364,14 @@ blue.  `bench/waves.asm` converted:
   pairs of every data immediate (LDAA/LDAB/LDD/ORAA #; an LDAB # followed
   by ABX is a row step, not data; AND masks are pair-symmetric and stay).
   No second copy of the art, no address table.  Stars and text likewise.
+
+### Explosions (frame animation in sprman)
+
+* `obj_anim_start` / `obj_anim_step`: an object plays a list of
+  (descriptor, frames) entries and frees itself at the end; state in 3
+  game bytes at AN_BASE.  Frame changes erase then draw (a brief flicker
+  suits an explosion).
+* Alien explosion: flash, burst, ring, debris (4+4+5+6 frames), in the
+  aliens' box, drifting at half the alien's speed; the slot stays busy
+  (not a target, not free) until it ends.  Fire held: median 9.5K
+  cycles, 0 frames over budget.
