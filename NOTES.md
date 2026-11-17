@@ -234,3 +234,13 @@ Choose per sprite type:
   sprites (cost per pixel moved), mind the code size of big mono sprites.
 * **Masked + row compositing** (to do): solid overlaps over scenery.
 * Plain OR/XOR erase-then-draw: only where banding doesn't matter.
+* **Visual test (owner): the 1-pixel halo (m5, a5) is the best effect of
+  all.**  The thin dark rim reads like a contact shadow, so front sprites
+  look like solid objects passing over the ones behind.  The 3-pixel halo
+  (m4) is too heavy.  It's also cheap (~594 cycles per 16x16 mono, ~556 per
+  8x16 artifact); it only looks slow because those builds move 1 pixel a
+  frame.
+* **Plan:** 1-pixel halo as the default sprite method, with fixed-point
+  positions (sub-pixel speeds up to 1 pixel per frame); a wider halo only
+  for fast sprite types such as bullets; maybe asymmetric halos (e.g. 2
+  across, 1 down).
