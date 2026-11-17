@@ -1,0 +1,40 @@
+# Shooter test sprites (bench/shooter.asm).  Halo = top speed.
+
+# The player's ship, 15x12, moves 2 pixels a frame
+sprite ship mono halo 2
+.......X.......
+......XXX......
+......X.X......
+.....XXXXX.....
+.....XX.XX.....
+....XXX.XXX....
+.X..XXXXXXX..X.
+.X.XXXXXXXXX.X.
+XXXXXXXXXXXXXXX
+XXXX.XXXXX.XXXX
+XX....XXX....XX
+X......X......X
+end
+
+# Alien craft, 14x9, flies curves at up to 2 pixels a frame
+sprite alien mono halo 2
+....XXXXXX....
+..XX.XXXX.XX..
+.XXXXXXXXXXXX.
+XX.XX.XX.XX.XX
+XXXXXXXXXXXXXX
+..XXX....XXX..
+.XX..XXXX..XX.
+XX..XX..XX..XX
+X............X
+end
+
+# The ship's shot, 2x6, 4 pixels a frame
+sprite shot mono halo 4
+XX
+XX
+XX
+XX
+XX
+XX
+end

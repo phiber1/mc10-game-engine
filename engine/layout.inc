@@ -16,6 +16,9 @@
 #ifndef METER
 #define METER 0
 #endif
+#ifndef OBJ_EXTRA
+#define OBJ_EXTRA 0
+#endif
 #ifndef DEBUG_TICK
 #define DEBUG_TICK 0
 #endif
@@ -36,4 +39,5 @@ obj_end         rmb     2
 sm_obj          rmb     2               ; sprman.asm scratch
 sm_desc         rmb     2
 sm_tab          rmb     2
+joy             rmb     1               ; input.asm: J_* bits
 ; $00A0-$00FF: free for programs

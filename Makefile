@@ -5,6 +5,8 @@
 #   make run-tick        run a program in the emulator (vmc10 --mcx32sd --8k)
 #   make variants        sprite test builds: run-sp_m0 ... run-sp_a5 (see below)
 #   make smdemo          sprite manager demo: run-sm_m, run-sm_a (+ _mk, _ak meter)
+#   make run-shooter     playable test: W A S Z / arrows, SPACE fires
+#                        (run-shooterk: with the CPU meter)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -102,7 +104,7 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 # Mono programs run with artifact colours off.  DBGLOG=FILE logs the
 # debug port to FILE.
 run-%: build/%.c10
-	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m%,$*),--no-artifact) \
+	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --tape $< --type 'CLOADM\nEXEC\n'
 comma := ,
@@ -112,6 +114,11 @@ FRAMES ?= 10
 log-%: build/%.raw
 	$(HEADLESS) $(ROMS)/MC10.BIN mcx32sd:$(ROMS)/mcx32sd_flash.bin 8k frames:200 \
 	    dbgport:BE00 load:$<,$(LOAD) pc:$(LOAD) frames:$(FRAMES)
+
+# The shooter test with the CPU meter
+build/shooterk.s: bench/shooter.asm $(ENGINE) $(SPRITES) Makefile | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
+	    $(CPPDEFS) $< -o $@
 
 shot-%: build/%.raw
 	$(HEADLESS) $(ROMS)/MC10.BIN mcx32sd:$(ROMS)/mcx32sd_flash.bin 8k frames:200 \

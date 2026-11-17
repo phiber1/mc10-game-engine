@@ -10,6 +10,9 @@
 ; ($0100 = 1 pixel per frame for a 1-pixel halo): the halo then always
 ; erases the previous position, and nothing ever needs a separate erase.
 ;
+; #define OBJ_EXTRA before including layout.inc to give every object
+; extra bytes (from O_USER) for game state.
+;
 ; spr_update_all  move every active object by its velocity and draw it
 ; obj_erase       X = object: clear its image at its current position (to
 ;                 remove it, or before moving it further than its halo)
@@ -26,7 +29,8 @@ O_YF            equ     3               ; y fraction}
 O_DX            equ     4               ; dx, signed 8.8
 O_DY            equ     6               ; dy, signed 8.8
 O_SPR           equ     8               ; descriptor address, 0 = free slot
-OBJ_SIZE        equ     10
+O_USER          equ     10              ; first byte of the game's own data
+OBJ_SIZE        equ     10+OBJ_EXTRA    ; #define OBJ_EXTRA n for n game bytes
 
 D_DRAW          equ     0
 D_ERASE         equ     2
