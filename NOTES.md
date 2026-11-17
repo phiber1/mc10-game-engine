@@ -296,3 +296,6 @@ sprite); ~10.7K cycles per frame median, 12K peak.
   cycles per frame, 25 of 1,446 frames over budget (1.7%).
 * Bug found on the way: uninitialised sequencer state made the "silent"
   interrupt run every 150 cycles (frame_init now clears everything).
+* **Owner verdict:** shooter with sound "great, no noticeable degradation
+  even while holding down fire"; spread shots give a "very convincing
+  arcade feel"; effects "smooth and effective"; sndtest "perfect".
