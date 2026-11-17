@@ -103,6 +103,8 @@ cnt             rmb     1               ; MODE 3: steps left in this run
 uy              rmb     1
 dtab            rmb     2               ; MODE 3: delta table for the step
 
+                DP_CHECK
+
                 org     CODE
 start:
                 sei

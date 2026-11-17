@@ -4,7 +4,9 @@
 ; Memory (8K mod + MCX32-SD; the low 24K also fits an 8K mod + 16K pack):
 ;   $0080-$00FF  6803 internal RAM: engine variables (direct page, fast)
 ;   $4000-$57FF  RG6 screen
-;   $5800-$5FFF  stack (grows down from $5FFF)
+;   $5800-$5BFF  bottom gutter (hidden rows 192-223, see sprite.asm)
+;   $5C00-$5EFF  BSS: programs' ordinary variables (org BSS)
+;   $5F00-$5FFF  stack (grows down from $5FFF)
 ;   $6000-       code and data
 
                 cpu     6801            ; the 6803 is a ROM-less 6801
@@ -38,6 +40,8 @@
 TXT_AT          function row,col,SCREEN+(row)*ROW_BYTES+(col)
 
 STACK_TOP       equ     $5FFF
+BSS             equ     $5C00           ; ordinary variables, up to BSS_END
+BSS_END         equ     $5F00
 CODE            equ     $6000
 
 ; ---------------------------------------------------------------- direct page
@@ -96,4 +100,6 @@ ht_al           equ     $F8             ; visible left, top of a
 ht_aw           equ     $FA             ; visible width, height of a
 ht_bl           equ     $FC
 ht_v            equ     $FE
-; PROG_DP-$00F7: free for programs (org PROG_DP)
+; PROG_DP-$00F7: free for programs (org PROG_DP).  End a program's
+; direct-page block with DP_CHECK: it fails the assembly if the block runs
+; into the hit_test scratch at $00F8 (which silently corrupts variables).

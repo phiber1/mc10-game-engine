@@ -41,6 +41,8 @@ al_obj          rmb     2               ; alien being processed
 sh_obj          rmb     2               ; shot being processed
 score           rmb     2               ; aliens destroyed
 
+                DP_CHECK
+
                 org     CODE
 start:
                 sei

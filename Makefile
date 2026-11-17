@@ -9,6 +9,7 @@
 #                        (run-shooterk: with the CPU meter)
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
 #   make run-game        the game prototype: title, score, lives (run-gamek: meter)
+#   make check           headless checks of the game prototype
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -134,8 +135,12 @@ shot-%: build/%.raw
 	$(HEADLESS) $(ROMS)/MC10.BIN mcx32sd:$(ROMS)/mcx32sd_flash.bin 8k frames:200 \
 	    load:$<,$(LOAD) pc:$(LOAD) frames:$(FRAMES) ppm:build/$*.ppm >/dev/null
 
+# Headless checks of the game prototype (needs the emulator's harness)
+check: build/game.raw
+	VMC10=$(VMC10) sh tests/game_check.sh
+
 clean:
 	rm -rf build
 
-.PHONY: all clean variants smdemo
+.PHONY: all clean variants smdemo check
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc

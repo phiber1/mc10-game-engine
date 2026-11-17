@@ -70,3 +70,18 @@ REST            macro   frames
                 fcb     frames, SND_REST
                 fdb     0, 0
                 endm
+
+; DP_CHECK: after a program's direct-page variables (org PROG_DP ... rmb):
+; stop the assembly if they reach the engine's scratch at ht_al ($00F8).
+DP_CHECK        macro
+                if      * > ht_al
+                error   "direct-page variables overflow into the engine's scratch at $F8: move some to BSS"
+                endif
+                endm
+
+; BSS_CHECK: the same for variables at BSS.
+BSS_CHECK       macro
+                if      * > BSS_END
+                error   "BSS variables overflow into the stack"
+                endif
+                endm

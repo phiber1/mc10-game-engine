@@ -18,6 +18,8 @@
 tframe          rmb     1
 icount          rmb     2
 
+                DP_CHECK
+
                 org     CODE
 start:
                 sei

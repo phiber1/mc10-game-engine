@@ -420,3 +420,16 @@ blue.  `bench/waves.asm` converted:
   launch during play; stars no longer start in a diagonal (st_rnd steps
   its LFSR 8 bits per byte: single steps made consecutive bytes shifted
   copies); the colour question appears only before the first game.
+* **Bug (owner report): stars rushing, ship stuck and flickering, aliens
+  slow.**  Two causes: (1) the game's direct-page variables had grown
+  into the engine's hit_test scratch at $F8, so every collision test
+  overwrote warpf (star updates per frame) and its neighbours; (2) a
+  nameless `+` label: new `+` labels inserted between `beq +` and its
+  target sent play mode into the arrival code every frame.  Fixes: less
+  frequently used variables moved to BSS ($5C00-$5EFF, between the gutter
+  and the stack); DP_CHECK / BSS_CHECK macros fail the assembly on an
+  overflow; named labels for multi-way dispatch.
+* **`make check`** (tests/game_check.sh): headless checks run before
+  handing over a build: the ship answers the controls in play, a forced
+  area clear reaches the next area back in play, and the frame budget
+  holds with fire held.

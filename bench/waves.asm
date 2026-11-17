@@ -53,6 +53,8 @@ hits            rmb     2               ; aliens destroyed
 ouch            rmb     1               ; bombs that hit the ship
 cy              rmb     1               ; collide: the shot's row + 24
 
+                DP_CHECK
+
                 org     CODE
 start:
                 sei

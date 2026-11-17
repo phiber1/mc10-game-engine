@@ -54,7 +54,7 @@ MAP_SEG         equ     30              ; map rows per area
 MAP_BOTTOM      equ     176             ; the map's bottom row
 MAP_COL         equ     15              ; the map strip's byte column
 
-                org     PROG_DP
+                org     PROG_DP         ; direct page: the per-frame variables
 cooldown        rmb     1
 seed            rmb     2
 obj             rmb     2               ; object being processed
@@ -67,29 +67,34 @@ bomb_cd         rmb     1               ; frames until another bomb may drop
 spray_t         rmb     1               ; bomb rhythm: spray, then quiet
 alive           rmb     1               ; aliens on screen
 cy              rmb     1               ; collide: the shot's row + 24
-banner_p        rmb     2               ; the banner being shown
-bu_s            rmb     2
-mp_t            rmb     1
-mp_a            rmb     2
+dead            rmb     1               ; nonzero while the ship is lost
+invuln          rmb     1               ; frames of invulnerability left
+mode            rmb     1               ; MODE_PLAY, MODE_SALUTE, MODE_WARP ...
+warpf           rmb     1               ; star updates per frame
+banner_t        rmb     1               ; frames the banner stays up
+status_t        rmb     1
+area_done       rmb     1               ; the area's waves are all launched
+                DP_CHECK
+
+                org     BSS             ; ordinary RAM: the rest
 score           rmb     3               ; BCD, 6 digits
 lives           rmb     1
-dead            rmb     1               ; nonzero while the ship is lost
 dead_t          rmb     1
-invuln          rmb     1               ; frames of invulnerability left
-banner_t        rmb     1               ; frames the banner stays up
 gover           rmb     1               ; game over: back to the title
-status_t        rmb     1
 col_o           rmb     1               ; the orange and blue masks (swapped
 col_b           rmb     1               ; by C on the title screen)
 keyprev         rmb     1
 col_ok          rmb     1               ; the colours were confirmed (first game)
 area            rmb     1               ; 0-3
-area_done       rmb     1               ; the area's waves are all launched
 wv_index        rmb     1               ; waves done in this area (the map)
-mode            rmb     1               ; MODE_PLAY, MODE_SALUTE, MODE_WARP
 mode_t          rmb     1
-warpf           rmb     1               ; star updates per frame
-wp_wrapped      rmb     1               ; the warping ship came round the screen
+wp_wrapped      rmb     1
+banner_p        rmb     2               ; the banner being shown
+bu_s            rmb     2
+mp_t            rmb     1
+mp_a            rmb     2
+BSS_USED        equ     *
+                BSS_CHECK
 
                 org     CODE
 start:
@@ -104,6 +109,11 @@ start:
 -               clr     0,x
                 inx
                 cpx     #ht_al
+                bne     -
+                ldx     #BSS
+-               clr     0,x
+                inx
+                cpx     #BSS_USED
                 bne     -
                 ldd     FRC
                 orab    #1
@@ -436,7 +446,7 @@ bombs_logic:
 ; ---------------------------------------------------------------- ship
 ship_logic:
                 ldaa    mode
-                beq     +
+                beq     sl_play
                 cmpa    #MODE_SALUTE
                 bne     sl_warp
                 ldx     #ship           ; the salute: hold still
@@ -447,13 +457,13 @@ ship_logic:
                 bne     sl_ret
                 jmp     warp_begin
 sl_warp:        cmpa    #MODE_WARP
-                bne     +
+                bne     sl_nwarp
                 jmp     warp_logic
-+               cmpa    #MODE_COAST
-                bne     +
+sl_nwarp:       cmpa    #MODE_COAST
+                bne     sl_ncoast
                 jmp     coast_logic
-+               jmp     arrive_logic
-+               tst     dead
+sl_ncoast:      jmp     arrive_logic
+sl_play:        tst     dead
                 beq     sl_alive
                 ldx     #ship           ; lost: let the explosion play out
                 ldd     AN_PTR,x
