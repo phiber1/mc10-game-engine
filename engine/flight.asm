@@ -23,6 +23,8 @@ P_SPEED         equ     2               ; P_SPEED, speed
 P_GOTO          equ     3               ; P_GOTO, address (2 bytes)
 P_AIM           equ     4               ; P_AIM: head for (fl_tx, fl_ty)
 P_EVENT         equ     5               ; P_EVENT, n: fl_event = n for the game
+P_TURNBY        equ     6               ; P_TURNBY, n: heading += n at once
+                                        ; (128 = an instant U-turn)
 ;
 ; fl_start      X = object, D = script: start flying it
 ; fl_step       X = object: one frame (run commands, turn, set velocity).
@@ -57,6 +59,8 @@ fl_fetch:
                 beq     fl_cmd_goto
                 cmpa    #P_AIM
                 beq     fl_cmd_aim
+                cmpa    #P_TURNBY
+                beq     fl_cmd_turnby
                 ; P_EVENT
                 ldaa    1,x
                 staa    fl_event
@@ -70,6 +74,14 @@ fl_adv:         abx                     ; X = script: advance by B
 fl_cmd_head:
                 ldaa    1,x
                 ldx     fl_obj
+                staa    F_ANG,x
+                ldx     F_PC,x
+                ldab    #2
+                bra     fl_adv
+fl_cmd_turnby:
+                ldaa    1,x
+                ldx     fl_obj
+                adda    F_ANG,x
                 staa    F_ANG,x
                 ldx     F_PC,x
                 ldab    #2
@@ -104,8 +116,13 @@ fl_cmd_fly:
                 stab    F_TURN,x
                 ldd     fl_pc
                 std     F_PC,x
+                dec     F_CNT,x         ; a new step: always set the velocity
+                bra     fl_turn
 fl_fly:
                 dec     F_CNT,x
+                ldaa    F_TURN,x        ; flying straight: the velocity
+                beq     fl_same         ; hasn't changed
+fl_turn:
                 ldaa    F_ANG,x
                 adda    F_TURN,x
                 staa    F_ANG,x
@@ -125,6 +142,8 @@ fl_velocity:
                 bsr     fl_scale
                 std     O_DY,x
                 rts
+
+fl_same:        rts
 
 fl_scale:                               ; X = object: D >>= F_SPD (0-2)
                 tst     F_SPD,x

@@ -61,6 +61,10 @@ fl_adx          rmb     1
 fl_ady          rmb     1
 fl_den          rmb     1
 fl_q            rmb     1
+st_ptr          rmb     2               ; stars.asm
+st_a            rmb     2
+st_m            rmb     1
+st_seed         rmb     2
 PROG_DP         equ     *               ; programs' direct-page variables start here
 ; hit_test scratch lives at $00F8-$00FF
 ht_al           equ     $F8             ; visible left, top of a

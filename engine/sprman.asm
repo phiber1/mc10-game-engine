@@ -45,24 +45,29 @@ D_VW            equ     7
 D_VH            equ     8
 
 spr_update_all:
+                ldd     #0              ; no descriptor cached yet
+                std     sm_desc
                 ldx     obj_first
 sm_loop:
                 stx     sm_obj
                 ldd     O_SPR,x
                 beq     sm_next         ; free slot
+                subd    sm_desc         ; same type as the last object?
+                beq     +               ; (usual in a wave): reuse its setup
+                ldd     O_SPR,x
                 std     sm_desc
-                ldd     O_X,x           ; x += dx
-                addd    O_DX,x
-                std     O_X,x
-                ldd     O_Y,x           ; y += dy
-                addd    O_DY,x
-                std     O_Y,x
                 ldx     sm_desc
                 ldd     D_CALL,x
                 std     sm_call+1
                 ldx     D_DRAW,x
                 stx     sm_tab
                 ldx     sm_obj
++               ldd     O_X,x           ; x += dx
+                addd    O_DX,x
+                std     O_X,x
+                ldd     O_Y,x           ; y += dy
+                addd    O_DY,x
+                std     O_Y,x
                 ldaa    O_X,x
                 ldab    O_Y,x
                 ldx     sm_tab
@@ -77,6 +82,8 @@ sm_next:
                 rts
 
 obj_erase:
+                ldd     #0              ; (uses sm_tab: drop spr_update_all's cache)
+                std     sm_desc
                 stx     sm_obj
                 ldx     O_SPR,x
                 beq     +

@@ -6,7 +6,7 @@
 ; screen gutters let sprites slide off and on whole).  Three alien types;
 ; aliens drop bombs at points in their paths.  The ship (W A S Z / arrows,
 ; SPACE fires) shoots them; bombs hitting the ship only make a sound (no
-; death yet).
+; death yet).  A star field falls behind everything.
 ;
 ;   METER=1     CPU meter
 
@@ -14,7 +14,7 @@
 #include "layout.inc"
 
 #define NALIEN 10
-#define NBOMB 4
+#define NBOMB 6
 #define NSHOT 3
 
 SHIP_SPEED      equ     $0200           ; 2 pixels a frame
@@ -37,6 +37,7 @@ wv_timer        rmb     1               ; frames to the next launch / wave
 alive           rmb     1               ; aliens on screen
 hits            rmb     2               ; aliens destroyed
 ouch            rmb     1               ; bombs that hit the ship
+cy              rmb     1               ; collide: the shot's row + 24
 
                 org     CODE
 start:
@@ -51,6 +52,8 @@ start:
                 ldd     FRC
                 orab    #1
                 std     seed
+                std     st_seed
+                jsr     stars_init
                 clr     cooldown
                 clr     ouch
                 ldd     #0
@@ -77,6 +80,7 @@ loop:
                 jsr     bombs_logic
                 jsr     shots_logic
                 jsr     collide
+                jsr     stars_update    ; stars first: sprites cover them
                 jsr     spr_update_all
                 ldaa    #$BB
                 DBGA
@@ -208,9 +212,6 @@ drop_bomb:
                 ldaa    O_Y,x
                 cmpa    #SHIP_YMIN-16
                 bcc     db_done
-                jsr     rnd             ; only half the time
-                bitb    #1
-                beq     db_done
                 ldx     #bombs
 -               ldd     O_SPR,x
                 beq     +
@@ -367,15 +368,20 @@ cs_loop:
                 stx     ht_a
                 ldd     O_SPR,x
                 beq     cs_next
+                ldaa    O_Y,x           ; this shot's row, for the quick reject
+                adda    #24
+                staa    cy
                 ldx     #aliens
-ca_loop:
-                stx     ht_b
+ca_loop:                                ; tight: most pairs are rejected here
                 ldd     O_SPR,x
                 beq     ca_next
-                ldaa    O_Y,x           ; skip aliens in the gutters
-                cmpa    #192
+                ldaa    cy              ; within 24 rows of the shot?
+                suba    O_Y,x
+                cmpa    #48
                 bcc     ca_next
+                stx     ht_b            ; close: the full test
                 jsr     hit_test
+                ldx     ht_b
                 bcc     ca_next
                 ldx     ht_a            ; hit: remove both
                 jsr     obj_erase
@@ -396,7 +402,6 @@ ca_loop:
                 jsr     snd_play
                 bra     cs_next
 ca_next:
-                ldx     ht_b
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #aliens_end
@@ -414,6 +419,11 @@ cb_loop:
                 stx     ht_a
                 ldd     O_SPR,x
                 beq     cb_next
+                ldaa    O_Y,x           ; quick reject: more than 24 rows apart
+                suba    ship+O_Y
+                adda    #24
+                cmpa    #48
+                bcc     cb_next
                 jsr     hit_test
                 bcc     cb_next
                 ldx     ht_a
@@ -458,20 +468,30 @@ cls:
 
 ; ---------------------------------------------------------------- data
 ; Flight paths (designed with tools/pathsim.py: they stay inside the side
-; edges and wrap cleanly)
-path_loopL:                             ; loop left, dive down-right; then
-                fcb     P_SPEED, 0      ; loop right, dive down-left
+; edges and wrap cleanly).  Jinks and U-turns are P_TURNBY.
+path_loopL:                             ; loop left, jink, dive down-right;
+                fcb     P_SPEED, 0      ; then the mirror image
                 fcb     P_HEAD, 64
 pl_rep:         fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 64, 4
                 fcb     P_EVENT, 1
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 12, 0
+                fcb     P_TURNBY, 48
                 fcb     P_FLY, 16, -2
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 60, 0
                 fcb     P_HEAD, 64
                 fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 64, -4
                 fcb     P_EVENT, 1
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 12, 0
+                fcb     P_TURNBY, -48
                 fcb     P_FLY, 16, 2
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 60, 0
                 fcb     P_HEAD, 64
                 fcb     P_GOTO
@@ -480,68 +500,120 @@ path_loopR:                             ; the mirror image
                 fcb     P_SPEED, 0
                 fcb     P_HEAD, 64
 pr_rep:         fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 64, -4
                 fcb     P_EVENT, 1
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 12, 0
+                fcb     P_TURNBY, -48
                 fcb     P_FLY, 16, 2
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 60, 0
                 fcb     P_HEAD, 64
                 fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 64, 4
                 fcb     P_EVENT, 1
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 12, 0
+                fcb     P_TURNBY, 48
                 fcb     P_FLY, 16, -2
+                fcb     P_EVENT, 1
                 fcb     P_FLY, 60, 0
                 fcb     P_HEAD, 64
                 fcb     P_GOTO
                 fdb     pr_rep
-path_swoopR:                            ; S-curve from the left
-                fcb     P_SPEED, 0
+ZIG_R           macro                   ; zigzag down, drifting right
                 fcb     P_HEAD, 40
-ps_rep:         fcb     P_FLY, 30, 0
-                fcb     P_FLY, 40, -2
-                fcb     P_FLY, 50, 3
+                fcb     P_FLY, 30, 0
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 70, 0
-                fcb     P_HEAD, 40
-                fcb     P_GOTO
-                fdb     ps_rep
-path_swoopL:                            ; and from the right
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 24, 0
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 24, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 24, 0
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 24, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, 24
+                fcb     P_FLY, 40, 0
+                endm
+ZIG_L           macro                   ; zigzag down, drifting left
+                fcb     P_HEAD, 88
+                fcb     P_FLY, 30, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 24, 0
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 24, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, -48
+                fcb     P_FLY, 24, 0
+                fcb     P_TURNBY, 48
+                fcb     P_FLY, 24, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, -24
+                fcb     P_FLY, 40, 0
+                endm
+path_zigRL:                             ; sudden swerves, never upward
                 fcb     P_SPEED, 0
-                fcb     P_HEAD, 88
-pw_rep:         fcb     P_FLY, 30, 0
-                fcb     P_FLY, 40, 2
-                fcb     P_FLY, 50, -3
-                fcb     P_EVENT, 1
-                fcb     P_FLY, 70, 0
-                fcb     P_HEAD, 88
+pz_rep:         ZIG_R
+                ZIG_L
                 fcb     P_GOTO
-                fdb     pw_rep
-path_circle:                            ; slow circling, then a fast dive
+                fdb     pz_rep
+path_zigLR:
+                fcb     P_SPEED, 0
+pzl_rep:        ZIG_L
+                ZIG_R
+                fcb     P_GOTO
+                fdb     pzl_rep
+path_circle:                            ; two fast circles, a reversal jink,
+                fcb     P_SPEED, 0      ; then a dive
                 fcb     P_HEAD, 64
-pc_rep:         fcb     P_SPEED, 1
-                fcb     P_FLY, 50, 0
-                fcb     P_FLY, 128, 2
-                fcb     P_FLY, 128, 2
-                fcb     P_SPEED, 0
+pc_rep:         fcb     P_FLY, 40, 0
+                fcb     P_FLY, 64, 4
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 80, 0
+                fcb     P_FLY, 64, 4
+                fcb     P_TURNBY, 128
+                fcb     P_FLY, 10, 0
+                fcb     P_TURNBY, 128
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 70, 0
                 fcb     P_HEAD, 64
                 fcb     P_GOTO
                 fdb     pc_rep
+path_circleR:                           ; the mirror image
+                fcb     P_SPEED, 0
+                fcb     P_HEAD, 64
+pcr_rep:        fcb     P_FLY, 40, 0
+                fcb     P_FLY, 64, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 64, -4
+                fcb     P_TURNBY, 128
+                fcb     P_FLY, 10, 0
+                fcb     P_TURNBY, 128
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 70, 0
+                fcb     P_HEAD, 64
+                fcb     P_GOTO
+                fdb     pcr_rep
 
 ; Waves: descriptor, path; count, launch interval (frames), entry x
 waves:
                 fdb     saucer_dsc, path_loopL
-                fcb     6, 12, 60
-                fdb     dart_dsc, path_swoopR
-                fcb     6, 10, 20
+                fcb     8, 12, 60
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 10, 40
                 fdb     orbiter_dsc, path_circle
-                fcb     6, 16, 60
+                fcb     8, 12, 70
                 fdb     saucer_dsc, path_loopR
-                fcb     6, 12, 178
-                fdb     dart_dsc, path_swoopL
-                fcb     6, 10, 210
-                fdb     orbiter_dsc, path_circle
-                fcb     6, 16, 150
+                fcb     8, 12, 178
+                fdb     dart_dsc, path_zigLR
+                fcb     8, 10, 198
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 12, 168
                 fdb     0
 
 ; Sound effects
@@ -559,6 +631,25 @@ fx_drop:        fcb     6, SND_TONE     ; a short falling blip
 fx_ouch:        fcb     20, SND_NOISE   ; a harsh buzz
                 fdb     300, 10
                 fcb     0
+
+; Star field: 16 stars in three speed layers (rows per frame x 256)
+#define NSTAR 18
+star_tab:
+i               set     0
+                rept    NSTAR
+                fdb     SCREEN
+                fcb     0, 0
+                if      i#3 == 0
+                fcb     $40             ; far: 1/8 row a frame (updated every
+                                        ; other frame: S_SPD is per 2 frames)
+                elseif  i#3 == 1
+                fcb     $80             ; middle: 1/4
+                else
+                fcb     $FF             ; near: 1/2
+                endif
+i               set     i+1
+                endm
+star_end:
 
 ; Objects, in priority order: aliens, bombs, shots, ship
 objs:
@@ -590,4 +681,5 @@ objs_end:
 #include "sintab.asm"
 #include "input.asm"
 #include "sound.asm"
+#include "stars.asm"
 #include "waves_spr.inc"

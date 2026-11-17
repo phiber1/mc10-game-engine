@@ -320,3 +320,16 @@ sprite); ~10.7K cycles per frame median, 12K peak.
 * Wave test: 3 alien types, 6 waves (loops, S-curves, slow circling and
   dives), bombs from path events.  40 s headless with fire held: median
   11.4K cycles/frame, 1 frame of 2,276 over budget.
+* **Tuning round (owner feedback):** P_TURNBY (instant heading change:
+  jinks, U-turns); new paths: loops with jinks, downward zigzags (headings
+  never point up, alternating sides so they don't drift), fast circles
+  with a reversal; orbiters no longer slow; bombs at every drop point (6
+  slots); 8-alien waves.
+* **Star field** (`engine/stars.asm`): 18 single-pixel stars, three
+  speed layers, half updated each frame; drawn before sprites, which
+  cover them.
+* **Optimisations** (profiled per phase with debug markers): flight skips
+  the velocity recompute on straight legs; the manager reuses the setup
+  when consecutive objects share a type; collisions use a tight quick-
+  reject loop.  Frame with 10 aliens, 6 bombs, 3 shots, 18 stars, sound,
+  fire held: median 11.8K cycles, 2% of frames over budget.

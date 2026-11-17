@@ -11,7 +11,7 @@ def s16(v): return v - 65536 if v & 0x8000 else v
 
 def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0):
     """script: list of tuples like ('fly', n, turn), ('head', a), ('speed', s),
-    ('goto', index), ('event', n).  Positions are 8.8."""
+    ('goto', index), ('event', n), ('turnby', n).  Positions are 8.8."""
     x, y = x0 << 8, y0 << 8
     ang, turn, cnt, spd, pc = head0, 0, 0, speed0, 0
     xs, ys, wraps, events, side_hits = [], [], [], [], []
@@ -24,6 +24,7 @@ def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0):
                 elif op[0] == 'speed': spd = op[1]
                 elif op[0] == 'goto': pc = op[1]; continue
                 elif op[0] == 'event': events.append(f)
+                elif op[0] == 'turnby': ang = (ang + op[1]) & 255
                 pc += 1
         cnt -= 1
         ang = (ang + turn) & 255
