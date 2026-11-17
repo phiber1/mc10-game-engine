@@ -275,3 +275,24 @@ sprite); ~10.7K cycles per frame median, 12K peak.
 * Missing for a real game: sound, explosions, a score display (text in
   RG6), sprites entering/leaving through the screen edges (clipping), and
   the player's death.
+
+### Sound engine (`engine/frame.asm` interrupt, `engine/sound.asm` sequencer)
+
+* One output-compare interrupt for sound and the frame tick: each event
+  moves OCR by `snd_half`, toggles the speaker (tone) or outputs an LFSR
+  bit (noise), and counts `snd_half` off the cycles left to the next tick.
+  Exact accounting (no drift); the tick lands up to one half-period late,
+  which is harmless because nothing races the beam.  Silent = one event
+  per frame.  The handler is a patched JMP (no mode tests).
+* All VDG writes go through `vdg_shadow` so the speaker bit survives
+  (`METER_*`, `VDG_SET`).
+* Sequencer: effects are segments of (frames, tone/noise/rest, half-period,
+  per-frame sweep); `snd_play` with priority, `snd_frame` once per frame.
+* Measured (`bench/sndtest.asm`, idle-loop counting): 1 kHz tone 15.8% of
+  the CPU (~2,350 cycles/frame), noise every 500 cycles 18.7%; silence 0.
+  Pitch exact (1,001 Hz measured from the emulator's audio).  Cost is
+  ~67/half-period: keep effects around 400 Hz-1 kHz.
+* Shooter with zap + explosion, fire held continuously: median 12.1K
+  cycles per frame, 25 of 1,446 frames over budget (1.7%).
+* Bug found on the way: uninitialised sequencer state made the "silent"
+  interrupt run every 150 cycles (frame_init now clears everything).

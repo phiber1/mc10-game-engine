@@ -109,6 +109,7 @@ start:
                 lds     #STACK_TOP
                 ldaa    #VDG_RG6|VDG_CSS
                 staa    VDG
+                staa    vdg_shadow
                 jsr     cls
                 jsr     frame_init
                 jsr     draw_all        ; first draw, so the erase has work to undo

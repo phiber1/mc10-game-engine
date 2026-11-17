@@ -7,6 +7,7 @@
 ; sprite manager, so nothing flickers: table order puts the aliens at the
 ; back, then the shots, with the ship in front.
 ;
+;   Sound: a zap per shot, an explosion per hit (engine/sound.asm).
 ;   METER=1     CPU meter        NALIEN=n     number of aliens (default 10)
 
 #define OBJ_EXTRA 4
@@ -48,6 +49,7 @@ start:
                 staa    P1DDR           ; keyboard column strobes are outputs
                 ldaa    #VDG_RG6|VDG_CSS
                 staa    VDG
+                staa    vdg_shadow
                 jsr     cls
                 ldd     FRC             ; seed the generator (never zero)
                 orab    #1
@@ -73,6 +75,7 @@ loop:
                 METER_ON
                 ldaa    #$AA
                 DBGA
+                jsr     snd_frame
                 jsr     kbd_read
                 jsr     ship_logic
                 jsr     fire_logic
@@ -160,6 +163,9 @@ fire_logic:
                 std     O_SPR,x
                 ldaa    #FIRE_DELAY
                 staa    cooldown
+                ldx     #fx_zap
+                ldaa    #1
+                jsr     snd_play
 fl_done:        rts
 
 shots_logic:
@@ -343,6 +349,9 @@ ca_loop:
                 ldd     score
                 addd    #1
                 std     score
+                ldx     #fx_boom        ; explosions beat zaps (priority 2)
+                ldaa    #2
+                jsr     snd_play
                 bra     cs_next
 ca_next:
                 ldx     al_obj
@@ -390,6 +399,16 @@ i               set     0
 i               set     i+1
                 endm
 
+; sound effects (see engine/sound.asm)
+fx_zap:         fcb     8, SND_TONE     ; ~1 kHz sliding down to ~450 Hz
+                fdb     450, 70
+                fcb     0
+fx_boom:        fcb     4, SND_NOISE    ; a crack, then a deepening rumble
+                fdb     400, 0
+                fcb     24, SND_NOISE
+                fdb     600, 30
+                fcb     0
+
 ; sprite descriptors
 alien_desc:     fdb     alien_hr, alien_er, spr_mono
 shot_desc:      fdb     shot_hr, shot_er, spr_mono
@@ -417,4 +436,5 @@ objs_end:
 #include "sprite.asm"
 #include "sprman.asm"
 #include "input.asm"
+#include "sound.asm"
 #include "shooter_spr.inc"

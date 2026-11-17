@@ -40,4 +40,13 @@ sm_obj          rmb     2               ; sprman.asm scratch
 sm_desc         rmb     2
 sm_tab          rmb     2
 joy             rmb     1               ; input.asm: J_* bits
+vdg_shadow      rmb     1               ; last value written to the VDG latch
+snd_mode        rmb     1               ; frame.asm / sound.asm: 0, tone, noise
+snd_half        rmb     2               ; speaker half-period (E cycles)
+snd_facc        rmb     2               ; cycles to the next frame tick
+snd_lfsr        rmb     2               ; noise generator
+snd_ptr         rmb     2               ; next segment of the effect
+snd_sweep       rmb     2               ; per-frame change of snd_half
+snd_left        rmb     1               ; frames left in this segment
+snd_pri         rmb     1               ; priority of the playing effect
 ; $00A0-$00FF: free for programs
