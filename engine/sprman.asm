@@ -13,7 +13,10 @@
 ; #define OBJ_EXTRA before including layout.inc to give every object
 ; extra bytes (from O_USER) for game state.
 ;
-; spr_update_all  move every active object by its velocity and draw it
+; spr_update_all  move every active object by its velocity and draw it.
+;                 If sm_band is nonzero, sm_dirty is incremented for every
+;                 object over rows 0..sm_band-1 (or above the top), so a
+;                 program can redraw a status bar there in front of sprites.
 ; obj_erase       X = object: clear its image at its current position (to
 ;                 remove it, or before moving it further than its halo)
 ;
@@ -70,6 +73,12 @@ sm_loop:
                 ldd     O_Y,x           ; y += dy
                 addd    O_DY,x
                 std     O_Y,x
+                cmpa    sm_band         ; over the top band (rows 0 to sm_band-1,
+                bcs     sm_inband       ; or coming in from above)?  Tell the
+                cmpa    #224            ; program: it may want to repair it
+                bcs     sm_draw
+sm_inband:      inc     sm_dirty
+sm_draw:
                 ldaa    O_X,x
                 ldab    O_Y,x
                 ldx     sm_tab

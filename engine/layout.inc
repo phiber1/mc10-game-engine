@@ -24,6 +24,9 @@
 #ifndef AN_BASE
 #define AN_BASE 0
 #endif
+#ifndef STAR_TOP
+#define STAR_TOP 0                      /* stars.asm: first row of the star field */
+#endif
 #ifndef FL_HALFX
 #define FL_HALFX 0
 #endif
@@ -83,6 +86,8 @@ st_seed         rmb     2
 st_half         rmb     1               ; which half of the stars moves next
 an_obj          rmb     2               ; sprman.asm animation
 an_tmp          rmb     2
+sm_band         rmb     1               ; sprman: rows of a status band (0 = none)
+sm_dirty        rmb     1               ; sprman: sprites touched the band
 txt_col         rmb     1               ; text.asm: colour mask
 tx_scr          rmb     2
 tx_scr2         rmb     2

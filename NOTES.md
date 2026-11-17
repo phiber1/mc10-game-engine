@@ -433,3 +433,12 @@ blue.  `bench/waves.asm` converted:
   handing over a build: the ship answers the controls in play, a forced
   area clear reaches the next area back in play, and the frame budget
   holds with fire held.
+* **Status bar in front (owner request):** the VDG always shows from
+  $4000 and the gutters need hidden memory above the playfield, so the
+  playfield can't simply start below the bar.  Instead the bar (rows 0-6)
+  is rendered into a buffer when the score or ships change, and copied
+  over the screen after the sprites on any frame a sprite touched it
+  (sprman flags objects over rows < sm_band or above the top).  The copy
+  is a per-row stack blast (LDAA n,X / PSHA, ~240 cycles a row with
+  interrupts off).  Shots end under the bar; stars stay below it
+  (STAR_TOP).  Aliens now slide out from under the bar.

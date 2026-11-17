@@ -7,6 +7,7 @@
 ; sprite pixel a star's erase touched, so nothing is damaged.
 ;
 ; stars_init    place every star at random and plot it
+; #define STAR_TOP n to keep the stars below row n (under a status bar).
 ; stars_update  once per frame: updates half the stars (alternating), so
 ;               a star's S_SPD is its speed per two frames.  ~20 cycles per
 ;               star updated, ~75 when it moves.
@@ -24,12 +25,16 @@ STAR_SIZE       equ     5
 stars_init:
                 ldx     #star_tab
 -               stx     st_ptr
-                jsr     st_rnd          ; random row 0-191, column 0-31, bit
+                jsr     st_rnd          ; random row STAR_TOP-191, column, bit
                 andb    #127
-                stab    st_m            ; row = 0-127 + (0-63)
+                stab    st_m            ; row = 0-127 + (0-63) ...
                 jsr     st_rnd
                 andb    #63
                 addb    st_m
+                cmpb    #192-STAR_TOP   ; ... folded into the star field
+                bcs     +
+                subb    #192-STAR_TOP
++               addb    #STAR_TOP
                 clra                    ; D = row * 32 + SCREEN
                 aslb
                 rola
@@ -82,8 +87,8 @@ st_loop:
                 abx
                 cpx     #SCREEN_END
                 bcs     +
-                ldx     #SCREEN         ; off the bottom: back in at the top,
-                stx     st_a            ; at a new random column
+                ldx     #SCREEN+STAR_TOP*ROW_BYTES ; off the bottom: back in at
+                stx     st_a            ; the top, at a new random column
                 bsr     st_place
                 ldx     st_a
 +               ldaa    0,x             ; plot the new pixel

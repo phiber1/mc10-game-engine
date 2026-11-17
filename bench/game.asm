@@ -13,6 +13,7 @@
 #define OBJ_EXTRA 9                     /* flight (6) + animation (3) */
 #define AN_BASE 6                       /* animation bytes after flight's */
 #define FL_HALFX 1                      /* artifact colour: 128 pixels across */
+#define STAR_TOP 7                      /* stars stay below the status bar */
 #include "layout.inc"
 
 #define NALIEN 10
@@ -39,8 +40,9 @@ DEAD_TIME       equ     110             ; frames from losing a ship to what's ne
 BANNER_TIME     equ     110             ; frames a banner stays up
 OVER_TIME       equ     200             ; "GAME OVER"
 INVULN_TIME     equ     120             ; flashing, untouchable, after a respawn
-STATUS_EVERY    equ     12              ; redraw the status line every n frames
 BANNER_ROW      equ     93
+BAND            equ     7               ; the status bar: rows 0-6, in front of
+                                        ; everything
 NAREAS          equ     4
 MODE_PLAY       equ     0
 MODE_SALUTE     equ     1               ; the victory salute
@@ -93,6 +95,10 @@ banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
 mp_t            rmb     1
 mp_a            rmb     2
+status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
+sr_sp           rmb     2
+sr_dst          rmb     2
+sr_n            rmb     1
 BSS_USED        equ     *
                 BSS_CHECK
 
@@ -181,6 +187,8 @@ game_start:
                 staa    cooldown
                 ldaa    #1
                 staa    status_t
+                ldaa    #BAND
+                staa    sm_band
                 jsr     ship_place
                 clr     area
                 clr     mode
@@ -213,12 +221,9 @@ loop:
                 decb
                 bne     -
                 jsr     spr_update_all
-                ldaa    mode            ; blasting off: the status bar is a
-                cmpa    #MODE_WARP      ; solid band in front of the ship
-                bne     +
-                jsr     status_band
-+               jsr     banner_update
-                jsr     status_update
+                jsr     status_update   ; render the bar if it changed ...
+                jsr     status_repair   ; ... and put it in front of sprites
+                jsr     banner_update
                 ldaa    #$BB
                 DBGA
                 METER_OFF
@@ -643,10 +648,13 @@ shots_logic:
 -               stx     obj2
                 ldd     O_SPR,x
                 beq     +
-                ldd     O_Y,x
-                addd    O_DY,x
+                ldd     O_Y,x           ; under the status bar (or past the
+                addd    O_DY,x          ; top): gone
+                cmpa    #BAND
+                bcs     sh_gone
                 cmpa    #192
                 bcs     +
+sh_gone:
                 jsr     obj_erase
                 ldx     obj2
                 ldd     #0
@@ -1081,53 +1089,87 @@ score_10:                               ; score += 10 (BCD)
                 staa    status_t
                 rts
 
-; The status line, redrawn every STATUS_EVERY frames (sprites and stars
-; fly across it): SCORE 000000 ... SHIPS 3
+; The status bar (rows 0-6: SCORE 000000 ... SHIPS 3) is rendered into
+; status_buf when the score or ships change (status_t set), and copied
+; to the screen after the sprites whenever any sprite touched it, so it is
+; always in front: aliens slide out from under it.
+BUF_AT          function row,col,status_buf+(row)*ROW_BYTES+(col)
+
 status_update:
-                dec     status_t
-                bne     su_done
-                ldaa    #STATUS_EVERY
-                staa    status_t
+                tst     status_t
+                beq     su_done
+                clr     status_t
+                ldx     #status_buf     ; blank
+                clra
+                clrb
+-               std     0,x
+                inx
+                inx
+                cpx     #status_buf+BAND*ROW_BYTES
+                bne     -
                 ldaa    col_o
                 staa    txt_col
-                ldx     #TXT_AT(1,1)
+                ldx     #BUF_AT(1,1)
                 ldd     #s_score
                 jsr     txt_str
                 ldaa    #TXT_WHITE
                 staa    txt_col
-                ldx     #TXT_AT(1,7)
+                ldx     #BUF_AT(1,7)
                 ldaa    #3
                 staa    tx_n
                 ldd     #score
                 jsr     txt_bcd
                 ldaa    col_o
                 staa    txt_col
-                ldx     #TXT_AT(1,24)
+                ldx     #BUF_AT(1,24)
                 ldd     #s_ships
                 jsr     txt_str
                 ldaa    #TXT_WHITE
                 staa    txt_col
                 ldaa    lives
                 adda    #'0'
-                ldx     #TXT_AT(1,30)
+                ldx     #BUF_AT(1,30)
                 jsr     txt_char
+                inc     sm_dirty        ; and show it
 su_done:        rts
 
-status_band:                            ; clear rows 0-7, then the status line
-                ldx     #SCREEN
-                clra
-                clrb
--               std     0,x
-                std     2,x
-                inx
-                inx
-                inx
-                inx
-                cpx     #SCREEN+8*ROW_BYTES
-                bne     -
-                ldaa    #1
-                staa    status_t
-                jmp     status_update
+; Copy status_buf over rows 0-6 if sprites touched them (or it changed).
+; Each row is a stack blast: S points at the row's end and PSHA writes
+; backwards (7 cycles a byte); interrupts are off only for one row at a
+; time (~240 cycles), so sound barely notices.
+status_repair:
+                tst     sm_dirty
+                bne     sr_go
+                rts
+sr_go:          clr     sm_dirty
+                sts     sr_sp
+                ldx     #SCREEN+ROW_BYTES-1
+                stx     sr_dst
+                ldx     #status_buf
+                ldaa    #BAND
+                staa    sr_n
+sr_row:
+                sei
+                lds     sr_dst
+k               set     ROW_BYTES-1
+                rept    ROW_BYTES
+                ldaa    k,x
+                psha
+k               set     k-1
+                endm
+                lds     sr_sp
+                cli
+                ldab    #ROW_BYTES
+                abx
+                pshx
+                ldd     sr_dst
+                addd    #ROW_BYTES
+                std     sr_dst
+                pulx
+                dec     sr_n
+                beq     sr_done
+                jmp     sr_row
+sr_done:        rts
 
 ; ---------------------------------------------------------------- banner
 ; D = banner (fdb screen address, then the text): show it for BANNER_TIME
