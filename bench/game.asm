@@ -67,6 +67,7 @@ cy              rmb     1               ; collide: the shot's row + 24
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
 mp_t            rmb     1
+mp_a            rmb     2
 score           rmb     3               ; BCD, 6 digits
 lives           rmb     1
 dead            rmb     1               ; nonzero while the ship is lost
@@ -890,6 +891,14 @@ map_show:
                 abx
                 cpx     #TXT_AT(MAP_BOTTOM,MAP_COL)
                 bne     -
+                clra                    ; the areas' labels
+                bsr     map_label
+                ldaa    #1
+                bsr     map_label
+                ldaa    #2
+                bsr     map_label
+                ldaa    #3
+                bsr     map_label
                 ldaa    col_o           ; a checkpoint at the top of each area
                 staa    txt_col
                 ldx     #TXT_AT(MAP_BOTTOM-1*MAP_SEG,MAP_COL)
@@ -934,12 +943,47 @@ map_show:
 map_mark:                               ; X = row start: a checkpoint marker
                 ldaa    #$FC            ; (a 3-pixel bar, 3 rows)
                 anda    col_o
-                staa    -1+1,x
+                staa    0,x
                 staa    ROW_BYTES,x
                 staa    2*ROW_BYTES,x
-                ldaa    #'B'            ; and a B for the boss beside it
-                ldab    #2
+                ldab    #2              ; and BOSS beside it
                 abx
+                ldd     #s_boss
+                jmp     txt_str
+
+; A = area number (0-3): its label to the left of the strip, white for
+; the current area, blue for the others
+map_label:
+                psha
+                ldab    col_b
+                cmpa    area
+                bne     +
+                ldab    #TXT_WHITE
++               stab    txt_col
+                inca                    ; row = bottom - (n + 1/2) segments
+                ldab    #MAP_SEG
+                mul
+                subb    #MAP_SEG/2
+                negb
+                addb    #MAP_BOTTOM-2
+                clra
+                aslb                    ; D = row * 32
+                rola
+                aslb
+                rola
+                aslb
+                rola
+                aslb
+                rola
+                aslb
+                rola
+                addd    #SCREEN+MAP_COL-7
+                std     mp_a
+                ldx     mp_a
+                ldd     #s_area
+                jsr     txt_str
+                pula
+                adda    #'1'
                 jmp     txt_char
 
 score_1000:                             ; score += 1000 (BCD)
@@ -1320,6 +1364,8 @@ s_gameover:     fdb     TXT_AT(BANNER_ROW,11)
 s_player:       fcc     "PLAYER 1"
                 fcb     0
 s_area:         fcc     "AREA "
+                fcb     0
+s_boss:         fcc     "BOSS"
                 fcb     0
 s_cleared:      fdb     TXT_AT(BANNER_ROW,10)
                 fcc     "AREA CLEARED"
