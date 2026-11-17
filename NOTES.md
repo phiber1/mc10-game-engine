@@ -355,5 +355,12 @@ blue.  `bench/waves.asm` converted:
   the fast layer white pairs.
 * Result: program 15K -> 9K (4 shifts instead of 8, narrower halos);
   frame work median 9.8K -> 8.7K, 1 frame of 2,071 over budget.
-* Still to do for colour: a "colours wrong? press a key" phase swap on the
-  title screen (artifact phase varies between machines and power-ups).
+* Colour phase: the emulator's VDG always starts the same way (colours
+  correct first time, confirmed by the owner); real NTSC hardware can come
+  up with orange and blue swapped.  CoCo games had you press RESET until a
+  sample was right; the MC-10 can't intercept RESET.  Plan: the title
+  screen shows a sample block and offers a key to swap colours *in
+  software*: one scan over the compiled sprite code that swaps the bit
+  pairs of every data immediate (LDAA/LDAB/LDD/ORAA #; an LDAB # followed
+  by ABX is a row step, not data; AND masks are pair-symmetric and stay).
+  No second copy of the art, no address table.  Stars and text likewise.
