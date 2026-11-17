@@ -33,7 +33,7 @@ AL_XMAX         equ     256-alien_W
 AL_YMAX         equ     192-alien_H
 FIRE_DELAY      equ     8               ; frames between shots
 
-                org     $00A0
+                org     PROG_DP
 cooldown        rmb     1
 seed            rmb     2               ; random number generator state
 sl_ptr          rmb     2

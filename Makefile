@@ -7,6 +7,7 @@
 #   make smdemo          sprite manager demo: run-sm_m, run-sm_a (+ _mk, _ak meter)
 #   make run-shooter     playable test: W A S Z / arrows, SPACE fires
 #                        (run-shooterk: with the CPU meter)
+#   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -104,7 +105,7 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 # Mono programs run with artifact colours off.  DBGLOG=FILE logs the
 # debug port to FILE.
 run-%: build/%.c10
-	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
+	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter% waves%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --tape $< --type 'CLOADM\nEXEC\n'
 comma := ,
@@ -117,6 +118,10 @@ log-%: build/%.raw
 
 # The shooter test with the CPU meter
 build/shooterk.s: bench/shooter.asm $(ENGINE) $(SPRITES) Makefile | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
+	    $(CPPDEFS) $< -o $@
+
+build/wavesk.s: bench/waves.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
 	    $(CPPDEFS) $< -o $@
 

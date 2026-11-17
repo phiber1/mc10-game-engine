@@ -92,7 +92,7 @@
 #define SPR_ERASE SPR_NAME(er)
 #endif
 
-                org     $00A0
+                org     PROG_DP
 obj             rmb     2               ; current object record
 ux              rmb     1               ; MODE 3: sign of dx, dy
 ax              rmb     1               ; MODE 3: |dx|, |dy|

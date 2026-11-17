@@ -299,3 +299,24 @@ sprite); ~10.7K cycles per frame median, 12K peak.
 * **Owner verdict:** shooter with sound "great, no noticeable degradation
   even while holding down fire"; spread shots give a "very convincing
   arcade feel"; effects "smooth and effective"; sndtest "perfect".
+
+### Waves, flight paths, gutters (`bench/waves.asm`, `engine/flight.asm`)
+
+* **Gutters instead of clipping:** `rowtab` covers all 256 y values: 192-223
+  is hidden memory below the screen (`$5800-$5BFF`), 224-255 is y = -32..-1
+  (`$3C00-$3FFF`, MCX32-SD flash, which ignores the writes: the flash only
+  programs after an unlock at chip offsets $5555/$2AAA, never addressable
+  from that window).  Sprites slide off the bottom and in at the top whole.
+  (Check on real hardware.)
+* **Flight scripts:** P_FLY frames,turn / P_HEAD / P_SPEED / P_GOTO /
+  P_AIM (heading toward a target, via a 33-entry atan table) / P_EVENT n.
+  Each path is ~20-40 bytes; every alien on the same script flies the same
+  path, so a wave launched at intervals is a snake.  `tools/pathsim.py`
+  simulates paths with the same integer maths to check side edges and
+  wraps before assembling.
+* **Halo sprites are leaner:** only `hr` and `er` routines, plus a
+  descriptor `NAME_dsc` with the hitbox; `hit_test` in sprman.  The
+  shooter shrank by ~5K.
+* Wave test: 3 alien types, 6 waves (loops, S-curves, slow circling and
+  dives), bombs from path events.  40 s headless with fire held: median
+  11.4K cycles/frame, 1 frame of 2,276 over budget.

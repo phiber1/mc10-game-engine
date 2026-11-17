@@ -22,6 +22,9 @@
  *               Erases its old position (moves up to N pixels) without
  *               ever going blank, and draws in front of anything drawn
  *               earlier: draw in priority order, lowest first.
+ *               Halo sprites get only NAME_hr and NAME_er, plus NAME_dsc:
+ *               a sprite manager descriptor (draw, erase, call, pad,
+ *               visible width, visible height).
  *   NAME_or, NAME_xr, NAME_er (, NAME_sr / NAME_hr)  routine tables
  *   NAME_d<d>s<s>  with "delta": XOR(old, new) for a one-pixel move in
  *               direction d = (dy+1)*3 + (dx+1) from shift s, in one
@@ -247,7 +250,8 @@ static void emit(void)
     printf("\n; ---- sprite %s: %dx%d %s\n", name, w, h, artifact ? "artifact" : "mono");
     printf("%s_W\tequ\t%d\n%s_H\tequ\t%d\n%s_SHIFTS\tequ\t%d\n%s_PAD\tequ\t%d\n",
            name, w, name, h, name, shifts, name, pad);
-    const char *kinds = halo ? "oxeh" : pad ? "oxes" : "oxe";
+    /* halo sprites only need their halo and erase routines */
+    const char *kinds = halo ? "eh" : pad ? "oxes" : "oxe";
     int nk = (int)strlen(kinds);
     for (int k = 0; k < nk; k++) {
         printf("%s_%cr:\n", name, kinds[k]);
@@ -256,6 +260,15 @@ static void emit(void)
     for (int k = 0; k < nk; k++)
         for (int s = 0; s < shifts; s++) routine(kinds[k], s);
     if (delta) emit_delta();
+    if (halo) {
+        /* a sprite manager descriptor (engine/sprman.asm) with the hitbox */
+        int bpp = artifact ? 2 : 1;
+        printf("%s_dsc:\n\tfdb\t%s_hr, %s_er, %s\n", name, name, name,
+               artifact ? "spr_art" : "spr_mono");
+        printf("\tfcb\t%d, %d, %d\t\t; pad, visible width, height\n",
+               pad, w - 2 * pad, h - 2 * pad);
+        (void)bpp;
+    }
 }
 
 /* Surround the art with a blank border of pad pixels on every side. */

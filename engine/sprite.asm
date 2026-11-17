@@ -1,6 +1,6 @@
 ; sprite.asm: calling compiled sprites (see tools/spritec.c).
 ;
-; spr_mono      A = x (0-255), B = y (0-191), X = routine table
+; spr_mono      A = x (0-255), B = y (see rowtab), X = routine table
 ;               (NAME_or, NAME_xr or NAME_er of a mono sprite)
 ; spr_art       the same for artifact sprites, x = 0-127
 ;
@@ -82,10 +82,24 @@ spr_art_d:
                 andb    #3
                 bra     spr_go_d
 
-; screen address of each row
+; Screen address of each row, for every value of the y byte:
+;   0-191    the screen
+;   192-223  the bottom gutter, $5800-$5BFF: hidden memory below the
+;            screen, so sprites can slide off the bottom whole
+;   224-255  y = -32..-1, the top gutter, $3C00-$3FFF: on the MCX32-SD
+;            this is flash, which ignores these writes (the flash only
+;            programs after an unlock sequence at chip offsets $5555 and
+;            $2AAA, which this window can never address), so sprites can
+;            slide in from above the top whole
+; A sprite must stay within 32 rows of the screen.  Nothing else may use
+; $5800-$5BFF (the stack lives above it).
 rowtab:
 r               set     0
-                rept    192
+                rept    256
+                if      r < 224
                 fdb     SCREEN+r*ROW_BYTES
+                else
+                fdb     SCREEN-(256-r)*ROW_BYTES
+                endif
 r               set     r+1
                 endm

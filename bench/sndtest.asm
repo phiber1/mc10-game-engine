@@ -14,7 +14,7 @@
 
 #include "layout.inc"
 
-                org     $00A0
+                org     PROG_DP
 tframe          rmb     1
 icount          rmb     2
 

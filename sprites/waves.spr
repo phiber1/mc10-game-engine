@@ -1,0 +1,76 @@
+# Wave test sprites (bench/waves.asm).  Halo = top speed.
+
+sprite ship mono halo 2
+.......X.......
+......XXX......
+......X.X......
+.....XXXXX.....
+.....XX.XX.....
+....XXX.XXX....
+.X..XXXXXXX..X.
+.X.XXXXXXXXX.X.
+XXXXXXXXXXXXXXX
+XXXX.XXXXX.XXXX
+XX....XXX....XX
+X......X......X
+end
+
+# Alien type 1: saucer, 14x9
+sprite saucer mono halo 2
+....XXXXXX....
+..XX.XXXX.XX..
+.XXXXXXXXXXXX.
+XX.XX.XX.XX.XX
+XXXXXXXXXXXXXX
+..XXX....XXX..
+.XX..XXXX..XX.
+XX..XX..XX..XX
+X............X
+end
+
+# Alien type 2: dart, 12x10
+sprite dart mono halo 2
+.....XX.....
+....XXXX....
+...XX..XX...
+..XXXXXXXX..
+.XX.XXXX.XX.
+XX..XXXX..XX
+X...XXXX...X
+....X..X....
+...XX..XX...
+..XX....XX..
+end
+
+# Alien type 3: orbiter, 14x10
+sprite orbiter mono halo 2
+.....XXXX.....
+...XXXXXXXX...
+..XX..XX..XX..
+.XXXXXXXXXXXX.
+XXX.XXXXXX.XXX
+.XXXXXXXXXXXX.
+..XX......XX..
+...XX....XX...
+..XX......XX..
+.X..........X.
+end
+
+# The ship's shot, 2x6, 4 pixels a frame
+sprite shot mono halo 4
+XX
+XX
+XX
+XX
+XX
+XX
+end
+
+# Alien bomb, 3x5, 3 pixels a frame
+sprite bomb mono halo 3
+.X.
+XXX
+XXX
+XXX
+.X.
+end
