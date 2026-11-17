@@ -244,3 +244,17 @@ Choose per sprite type:
   positions (sub-pixel speeds up to 1 pixel per frame); a wider halo only
   for fast sprite types such as bullets; maybe asymmetric halos (e.g. 2
   across, 1 down).
+
+### Sprite manager (`engine/sprman.asm`, demo `bench/smdemo.asm`)
+
+* Object record (10 bytes): x, y in 8.8 fixed point, dx, dy signed 8.8,
+  descriptor pointer (0 = free slot).  Table order = priority.
+* Descriptor: draw table, erase table, call routine (`spr_mono` or
+  `spr_art`), so one manager drives any mix of sprite types.
+* `spr_update_all` moves and draws everything; `obj_erase` clears an
+  object (removal, or a jump further than its halo).
+* Measured with 1-pixel halo sprites and mixed speeds of 0.25 to 1 pixel
+  per frame: ~690 cycles per object including the demo's bounce logic
+  (~594 of it the draw).  16 objects = ~11.1K mono / ~10.6K artifact, 74%
+  / 71% of a frame.  Possible later saving: cache the draw table and call
+  in the object record instead of going through the descriptor.

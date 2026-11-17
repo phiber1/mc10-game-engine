@@ -33,8 +33,8 @@ Each `bench/NAME.asm` becomes `build/NAME.c10` (for CLOADM) and
 
 | Path | Contents |
 |---|---|
-| `engine/` | Hardware definitions, memory layout, frame tick, sprite calls |
-| `bench/` | Proof-of-concept benchmarks (`tick`, `sprites`) |
+| `engine/` | Hardware definitions, memory layout, frame tick, sprite calls, sprite manager |
+| `bench/` | Proof-of-concept benchmarks and demos (`tick`, `sprites`, `smdemo`) |
 | `sprites/` | Text-art sprites, compiled by `tools/spritec` |
 | `tools/` | `spritec` (sprite compiler), `mkc10` (C10/DECB wrapper), `ppm2png` |
 

@@ -3,7 +3,8 @@
 #   make                 build every program in bench/ (DEBUG=1 by default)
 #   make DEBUG=0         release build: no debug-port writes
 #   make run-tick        run a program in the emulator (vmc10 --mcx32sd --8k)
-#   make variants        sprite test builds: run-sp_m0 ... run-sp_a2 (see below)
+#   make variants        sprite test builds: run-sp_m0 ... run-sp_a5 (see below)
+#   make smdemo          sprite manager demo: run-sm_m, run-sm_a (+ _mk, _ak meter)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
@@ -87,11 +88,21 @@ build/spk_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
 	    -DART=$(if $(findstring a,$*),1,0) -DMODE=$(subst a,,$(subst m,,$*)) \
 	    -DNSPR=$(NSPR_$*) $(CPPDEFS) $< -o $@
 
+# Sprite manager demo builds: build/sm_m.c10 (mono), sm_a (artifact), and
+# sm_mk / sm_ak with the CPU meter.
+SMVARS  := m a mk ak
+smdemo: $(foreach v,$(SMVARS),build/sm_$(v).c10)
+
+build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
+	    -DART=$(if $(findstring a,$*),1,0) -DMETER=$(if $(findstring k,$*),1,0) \
+	    -DNSPR=16 $(CPPDEFS) $< -o $@
+
 # Run in the emulator: CLOADM from the cassette image, then EXEC.
 # Mono programs run with artifact colours off.  DBGLOG=FILE logs the
 # debug port to FILE.
 run-%: build/%.c10
-	$(EMU) --mcx32sd --8k $(if $(findstring _m,$*),--no-artifact) \
+	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --tape $< --type 'CLOADM\nEXEC\n'
 comma := ,
@@ -109,5 +120,5 @@ shot-%: build/%.raw
 clean:
 	rm -rf build
 
-.PHONY: all clean variants
+.PHONY: all clean variants smdemo
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc

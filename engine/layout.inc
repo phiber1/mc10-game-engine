@@ -31,4 +31,9 @@ CODE            equ     $6000
 frame_count     rmb     1               ; incremented by the frame tick
 spr_col         rmb     1               ; sprite.asm scratch
 spr_scr         rmb     2
+obj_first       rmb     2               ; sprman.asm: the object table
+obj_end         rmb     2
+sm_obj          rmb     2               ; sprman.asm scratch
+sm_desc         rmb     2
+sm_tab          rmb     2
 ; $00A0-$00FF: free for programs
