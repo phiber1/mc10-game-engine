@@ -608,6 +608,12 @@ blue.  `bench/waves.asm` converted:
   the top, which reads as an instant swap.  So each alien now waits its
   own random time: HOP_WAIT + 0-15 counts of 4 frames (spray_t & 3),
   i.e. 40-100 frames; out of sight 46-109 frames, staggered.
+  Still too close for the owner, so now the whole column empties first:
+  aliens_logic counts hopping aliens on screen (hop_vis) and waiting
+  (hop_park) each frame; the waiting ones count down only once none is
+  on screen (hop_rel latches until none is waiting).  Out of sight
+  85-198 frames; check 2e verifies an empty screen before every
+  re-entry.
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap

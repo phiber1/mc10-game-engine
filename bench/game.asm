@@ -130,6 +130,9 @@ mp_a            rmb     2
 bm_xy           rmb     2               ; bomb_at: the bomb's position
 bm_dx           rmb     2               ; and its sideways speed
 rnd_n           rmb     1               ; rnd: steps left
+hop_vis         rmb     1               ; hopping aliens on screen (this frame)
+hop_park        rmb     1               ; ... and waiting out of sight
+hop_rel         rmb     1               ; the waiting ones may come back
 ba_xy           rmb     2               ; boss_attach scratch
 ba_dx           rmb     2
 ba_dy           rmb     2
@@ -404,6 +407,15 @@ aliens_logic_f1:
                 bcs     aliens_logic_f2
                 clr     spray_t
 aliens_logic_f2:
+                ldaa    hop_park        ; hops: the waiting aliens come back
+                bne     al_hops         ; only once their whole column has
+                clr     hop_rel         ; left the screen (then each after
+                bra     al_hops_f1      ; its own random time); none
+al_hops:        tst     hop_vis         ; waiting: start again
+                bne     al_hops_f1
+                inc     hop_rel
+al_hops_f1:     clr     hop_park
+                clr     hop_vis
                 ldaa    ship+O_X        ; the aim target: the ship
                 staa    fl_tx
                 ldaa    ship+O_Y
@@ -428,6 +440,9 @@ al_live:
                 ldaa    F_FLAGS,x       ; waiting out of sight before coming
                 cmpa    #FF_WAIT1       ; back in (a count in bits 3-7)?
                 bcs     al_go
+                inc     hop_park
+                tst     hop_rel         ; the column still on screen?
+                beq     al_wait
                 ldab    spray_t         ; count every 4th frame
                 andb    #3
                 bne     al_wait
@@ -437,7 +452,13 @@ al_live:
                 bcc     al_wait
                 jsr     fl_velocity     ; time's up: on along the path
 al_wait:        jmp     al_next
-al_go:          ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
+al_go:          bita    #FF_HOPL|FF_HOPR ; a hopping alien on screen?
+                beq     al_go_f1
+                ldab    O_Y,x
+                cmpb    #192
+                bcc     al_go_f1
+                inc     hop_vis
+al_go_f1:       ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
                 bita    #FF_WRAP
                 bne     al_inside
                 ldaa    O_X,x           ; off the side somehow?  Back inside
