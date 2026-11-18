@@ -561,3 +561,27 @@ blue.  `bench/waves.asm` converted:
   passes with U-turns, then a dive).  A wrap wave or two in every area.
 * make check: forced sweep wave, aliens cross right -> left (6 in 10 s),
   none stays straddling.  Main segment ends $A3A6 (~2.6K free).
+
+### State and next steps (2026-11-17, before a context compaction)
+
+* Owner playtest: hard but fair ("will definitely challenge folks"); not
+  yet past the area 3 boss; beat the area 2 envoy boss.  Wrapping darts
+  are a great surprise but too rare: add more sweep/weave waves.
+* Owner request: **physically different bosses** (story: the area 1
+  mothership is dead by area 2).  Memory now: main ends $A3A6 (~2.6K
+  free), low ~400 bytes free.  A 24x12 halo 1 1 hull costs ~2.8K.
+* **Agreed plan, in order:**
+  1. Memory pass: spritec option to compile a sprite for ONE shift (the
+     table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap
+     ship x to that shift at warp_begin (<=3 px; it's redrawn then
+     anyway) -> saves ~2.6K main.  Explosions (boom1-4, ~3.3K, low
+     segment): snap x to a byte boundary at obj_anim_start time (aliens,
+     boss bursts), drift vertically only -> saves ~2.5K low.
+  2. A new hull for the area 2 boss (envoys + shielded core as now).
+  3. More wrap-around waves in the areas.
+  4. Later: bosses 3 and 4 distinct (smaller hulls, parts reuse, more
+     engine tables to low memory); the owner designs them (mysteries).
+* Then: more alien types / personalities, title screen polish, a name.
+* Process: `make check` (18 tests) before every handover; named labels
+  only in game.asm; realistic performance tests (sweep + rapid fire) vs
+  the last build the owner liked.
