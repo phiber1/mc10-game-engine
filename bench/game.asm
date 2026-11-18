@@ -38,7 +38,7 @@ BOMB_GAP        equ     7               ; at least 7 frames between bombs
 FF_HOPL         equ     $02             ; F_FLAGS: back in at a random x (event 2)
 FF_HOPR         equ     $04             ; ... for right circles (event 3)
 FF_WAIT1        equ     $08             ; F_FLAGS bits 3-7: a hidden wait (count)
-HOP_WAIT        equ     24              ; ... after a hop: 24 counts = 48 frames
+HOP_WAIT        equ     10              ; ... after a hop: 10-25 counts of 4 frames
 AIM_W           equ     2               ; aimed drops: within 2 pixels of the nose
 BOMB_WARN       equ     36              ; bombs start 36 rows above the ship (12 frames)
 
@@ -428,7 +428,8 @@ al_live:
                 ldaa    F_FLAGS,x       ; waiting out of sight before coming
                 cmpa    #FF_WAIT1       ; back in (a count in bits 3-7)?
                 bcs     al_go
-                tst     col_par         ; count on alternate frames
+                ldab    spray_t         ; count every 4th frame
+                andb    #3
                 bne     al_wait
                 suba    #FF_WAIT1
                 staa    F_FLAGS,x
@@ -513,9 +514,15 @@ al_hop_x:       staa    O_X,x
                 ldd     #0              ; and wait there a moment, out of
                 std     O_DX,x          ; sight, so it looks intentional
                 std     O_DY,x
-                ldaa    F_FLAGS,x
-                oraa    #HOP_WAIT*FF_WAIT1
-                staa    F_FLAGS,x
+                jsr     rnd             ; for its own random time (not in
+                andb    #15             ; step with the others leaving, or
+                addb    #HOP_WAIT       ; it looks like an instant swap)
+                aslb
+                aslb
+                aslb
+                ldx     obj
+                orab    F_FLAGS,x
+                stab    F_FLAGS,x
 al_top:         ldaa    #256-AL_H
                 staa    O_Y,x
 al_next:

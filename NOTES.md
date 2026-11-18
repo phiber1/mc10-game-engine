@@ -603,6 +603,11 @@ blue.  `bench/waves.asm` converted:
   count of HOP_WAIT (24) in F_FLAGS bits 3-7 (FF_WAIT1 = $08) counted
   down on alternate frames (col_par); at zero fl_velocity resumes the
   path where it was.  Out of sight ~55 frames per hop (check 2e).
+  The owner saw no pause at first: the orbiters fly in a column 14
+  frames apart, so as one left the bottom an earlier one re-entered at
+  the top, which reads as an instant swap.  So each alien now waits its
+  own random time: HOP_WAIT + 0-15 counts of 4 frames (spray_t & 3),
+  i.e. 40-100 frames; out of sight 46-109 frames, staggered.
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap
