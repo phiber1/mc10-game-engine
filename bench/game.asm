@@ -59,8 +59,14 @@ BOSS_Y          equ     24              ; where it stops descending
 BOSS_SPEED      equ     $0080           ; half a pixel a frame
 BOSS_DESCEND    equ     $0040           ; a slow, ominous descent
 WARN_TIME       equ     240             ; the warning: siren and flashing banner
-BOSS_XMIN       equ     4
+BOSS_XMIN       equ     4               ; sway range without envoys ...
 BOSS_XMAX       equ     128-boss1_W-4
+ENV_DXL         equ     envoy_W+2       ; envoys' boxes: left of the hull ...
+ENV_DXR         equ     boss1_W+2       ; ... and right of it
+ENV_DY          equ     2
+BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
+BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
+ENV_FIRE        equ     16              ; frames between envoy bombs
 CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
 CORE_DY         equ     boss1_PADY+4-core_PADY  ; opening
 BOSS_FIRE       equ     22              ; frames between cannon shots
@@ -113,11 +119,20 @@ banner_fl       rmb     1               ; the banner flashes
 mp_t            rmb     1
 mp_a            rmb     2
 bm_xy           rmb     2               ; bomb_at: the bomb's position
+ba_xy           rmb     2               ; boss_attach scratch
+ba_dx           rmb     2
+ba_dy           rmb     2
 boss_hp         rmb     1               ; core hits left
 boss_t          rmb     1               ; boss timer (bombs, dying)
 core_flash      rmb     1               ; frames the core stays white
 boss_side       rmb     1               ; which cannon fires next
 wv_start        rmb     2               ; the escort list (it loops)
+env_left        rmb     1               ; envoys still flying (shield up)
+env_hp          rmb     2               ; hits left: left envoy, right envoy
+env_t           rmb     1               ; envoy bomb timer
+env_side        rmb     1               ; which envoy bombs next
+boss_xmin       rmb     1               ; the hull's sway range
+boss_xmax       rmb     1
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
 sr_dst          rmb     2
@@ -462,6 +477,33 @@ db_done_f1:     ldd     bm_xy
                 ldx     #fx_drop
                 ldaa    #1
                 jmp     snd_play
+
+; a bomb at A = x, B = y, whatever the rhythm (envoys), if a slot is free
+bomb_force:
+                std     bm_xy
+                ldaa    bm_xy+1
+                cmpa    #SHIP_YMIN-8
+                bcc     bf_done
+                ldx     #bombs
+bf_find:        ldd     O_SPR,x
+                beq     bf_slot
+                ldab    #OBJ_SIZE
+                abx
+                cpx     #bombs_end
+                bne     bf_find
+bf_done:        rts
+bf_slot:        ldd     bm_xy
+                staa    O_X,x
+                stab    O_Y,x
+                clr     O_XF,x
+                clr     O_YF,x
+                ldd     #0
+                std     O_DX,x
+                ldd     #BOMB_SPEED
+                std     O_DY,x
+                ldd     #bomb_dsc
+                std     O_SPR,x
+                rts
 
 bombs_logic:
                 ldx     #bombs
@@ -919,20 +961,47 @@ boss_start:
                 std     O_DY,x
                 ldd     #boss1_dsc
                 std     O_SPR,x
-                ldx     #core
-                ldd     #core_dsc
-                std     O_SPR,x
                 clr     core_flash
-                ldab    area            ; this area's toughness and escorts
-                ldaa    #3
+                ldab    area            ; this area's boss: core hits, envoys,
+                ldaa    #5              ; envoy hits, escorts
                 mul
                 addd    #boss_tab
                 std     bm_xy
                 ldx     bm_xy
                 ldaa    0,x
                 staa    boss_hp
-                ldx     1,x
+                ldaa    1,x
+                staa    env_left
+                ldaa    2,x
+                staa    env_hp
+                staa    env_hp+1
+                ldx     3,x
                 stx     wv_start
+                ldaa    #BOSS_XMIN      ; the sway range
+                ldab    #BOSS_XMAX
+                tst     env_left
+                beq     bst_noenv
+                ldaa    #BOSS_EXMIN
+                ldab    #BOSS_EXMAX
+                ldx     #env1           ; the envoys
+                ldd     #envoy_dsc
+                std     O_SPR,x
+                ldx     #env2
+                std     O_SPR,x
+                ldaa    #BOSS_EXMIN
+                ldab    #BOSS_EXMAX
+bst_noenv:      staa    boss_xmin
+                stab    boss_xmax
+                ldx     #core           ; the core: shut while envoys fly
+                ldd     #core_dsc
+                tst     env_left
+                beq     bst_open
+                ldd     #coreshut_dsc
+bst_open:       std     O_SPR,x
+                jsr     boss_attach
+                ldaa    #ENV_FIRE
+                staa    env_t
+                ldx     wv_start
                 stx     wv_ptr
                 jsr     wave_begin
                 clr     area_done
@@ -977,9 +1046,9 @@ boss_logic_f1:  ldx     #boss
 bl_fight:
                 ldd     O_X,x           ; sway between the sides
                 addd    O_DX,x
-                cmpa    #BOSS_XMIN
+                cmpa    boss_xmin
                 bcs     bl_fight_f1
-                cmpa    #BOSS_XMAX
+                cmpa    boss_xmax
                 bcs     bl_fight_f2
 bl_fight_f1:    ldd     #0
                 subd    O_DX,x
@@ -997,25 +1066,10 @@ bl_fight_f2:    dec     boss_t          ; the cannons, in turn
 bl_fight_f3:    ldab    O_Y,x
                 addb    #boss1_PADY+12-bomb_PADY
                 jsr     bomb_at
-bl_core:                                ; the core rides in the opening
-                ldx     #boss
-                ldaa    O_X,x
-                adda    #CORE_DX
-                ldab    O_Y,x
-                addb    #CORE_DY
+bl_core:
+                jsr     env_bomb
+                jsr     boss_attach
                 ldx     #core
-                staa    O_X,x
-                stab    O_Y,x
-                ldx     #boss
-                ldd     O_DX,x
-                pshb
-                psha
-                ldd     O_DY,x
-                ldx     #core
-                std     O_DY,x
-                pula
-                pulb
-                std     O_DX,x
                 ldaa    core_flash      ; white for a moment after a hit
                 beq     bl_r
                 dec     core_flash
@@ -1023,6 +1077,88 @@ bl_core:                                ; the core rides in the opening
                 ldd     #core_dsc
                 std     O_SPR,x
 bl_r:           rts
+
+; The core and the flying envoys ride with the hull: placed relative to
+; it, with its velocity.  Exploding envoys stay where they died and play
+; out their explosion.
+boss_attach:
+                ldx     #boss
+                ldd     O_DX,x
+                std     ba_dx
+                ldd     O_DY,x
+                std     ba_dy
+                ldaa    O_X,x
+                ldab    O_Y,x
+                std     ba_xy
+                adda    #CORE_DX
+                addb    #CORE_DY
+                ldx     #core
+                bsr     ba_place
+                ldx     #env1
+                ldd     O_SPR,x
+                beq     ba_env2
+                ldd     AN_PTR,x
+                beq     ba_l
+                jsr     obj_anim_step
+                bra     ba_env2
+ba_l:           ldd     ba_xy
+                suba    #ENV_DXL
+                addb    #ENV_DY
+                bsr     ba_place
+ba_env2:        ldx     #env2
+                ldd     O_SPR,x
+                beq     ba_done
+                ldd     AN_PTR,x
+                beq     ba_r
+                jmp     obj_anim_step
+ba_r:           ldd     ba_xy
+                adda    #ENV_DXR
+                addb    #ENV_DY
+                ; fall through
+ba_place:                               ; X = object, A, B = x, y; hull's speed
+                staa    O_X,x
+                stab    O_Y,x
+                ldd     ba_dx
+                std     O_DX,x
+                ldd     ba_dy
+                std     O_DY,x
+ba_done:        rts
+
+; The envoys bomb in turn, fast and outside the aliens' spray rhythm.
+env_bomb:
+                tst     env_left
+                beq     eb_done
+                ldaa    boss_state
+                cmpa    #BS_FIGHT
+                bne     eb_done
+                dec     env_t
+                bne     eb_done
+                ldaa    #ENV_FIRE
+                staa    env_t
+                com     env_side
+                ldx     #env1
+                tst     env_side
+                beq     eb_try
+                ldx     #env2
+eb_try:         ldd     AN_PTR,x        ; that one gone?  The other, then
+                bne     eb_other
+                ldd     O_SPR,x
+                bne     eb_fire
+eb_other:       cpx     #env1
+                bne     eb_o1
+                ldx     #env2
+                bra     eb_o2
+eb_o1:          ldx     #env1
+eb_o2:          ldd     AN_PTR,x
+                bne     eb_done
+                ldd     O_SPR,x
+                beq     eb_done
+eb_fire:        ldaa    O_X,x
+                adda    #envoy_PADX+3-bomb_PADX
+                ldab    O_Y,x
+                addb    #envoy_H-envoy_PADY-bomb_PADY
+                jmp     bomb_force
+eb_done:        rts
 
 ; a shot (ht_a) against the boss: carry set if it hit anything
 boss_shot:
@@ -1035,25 +1171,41 @@ boss_shot:
                 suba    O_Y,x
                 cmpa    #boss1_H
                 bcc     bs_miss
-                ldx     #core
-                stx     ht_b
-                jsr     hit_test
-                bcs     bs_core
-                ldx     ht_a            ; in the core's column?  Then it flies
-                ldaa    O_X,x           ; up the channel to the core: not the
-                ldx     #core           ; hull
+                ldx     #env1           ; the envoys
+                jsr     env_test
+                bcs     bs_hit
+                ldx     #env2
+                jsr     env_test
+                bcs     bs_hit
+                ldx     ht_a            ; in the core's column?  (The quick
+                ldaa    O_X,x           ; reject above already put the shot
+                ldx     #core           ; in the boss's rows, so x decides.)
                 suba    O_X,x
                 adda    #shot_PADX-core_PADX
                 cmpa    #4              ; (the core is 4 pixels wide)
-                bcs     bs_miss
+                bcc     bs_hull
+                ldx     ht_a            ; up the channel: has it reached the
+                ldaa    O_Y,x           ; core's bottom row yet?
+                adda    #shot_PADY
+                ldx     #core
+                suba    O_Y,x
+                suba    #core_PADY+4
+                bcc     bs_miss         ; not yet: it flies on
+                tst     env_left        ; shut: it pings like the hull
+                bne     bs_ping
+                bra     bs_core
+bs_hull:        ldx     ht_a            ; the hull: is the shot within its
+                ldaa    O_X,x           ; width?
+                adda    #shot_PADX
                 ldx     #boss
-                stx     ht_b
-                jsr     hit_test
+                suba    O_X,x
+                suba    #boss1_PADX
+                cmpa    #24             ; (the hull is 24 pixels wide)
                 bcc     bs_miss
-                ldx     #fx_ping        ; the hull: the shot bounces off
+bs_ping:        ldx     #fx_ping        ; the hull: the shot bounces off
                 ldaa    #1
                 jsr     snd_play
-                sec
+bs_hit:         sec
                 rts
 bs_miss:        clc
                 rts
@@ -1070,6 +1222,59 @@ bs_core:
                 ldaa    #2
                 jsr     snd_play
                 sec
+                rts
+
+; X = an envoy: if the shot ht_a hits it, take a hit (carry set)
+env_test:
+                ldd     O_SPR,x
+                beq     et_miss
+                ldd     AN_PTR,x
+                bne     et_miss
+                stx     ht_b
+                ldaa    O_X,x           ; quick reject: the shot more than an
+                ldx     ht_a            ; envoy's width to either side
+                suba    O_X,x
+                adda    #envoy_W
+                cmpa    #2*envoy_W
+                bcc     et_miss
+                jsr     hit_test
+                bcc     et_miss
+                ldaa    #0              ; which envoy: 0 left, 1 right
+                ldx     ht_b
+                cpx     #env1
+                beq     et_which
+                inca
+et_which:       ldx     #env_hp
+                tab
+                abx
+                dec     0,x
+                beq     et_down
+                ldx     #fx_clang
+                ldaa    #2
+                jsr     snd_play
+                sec
+                rts
+et_down:        ldx     ht_b            ; destroyed: it explodes ...
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                ldd     #anim_boom
+                jsr     obj_anim_start
+                jsr     score_500
+                ldx     #fx_boom
+                ldaa    #3
+                jsr     snd_play
+                dec     env_left        ; ... and when both are gone the
+                bne     et_hit          ; core opens
+                ldx     #core
+                ldd     #core_dsc
+                std     O_SPR,x
+                ldx     #fx_open
+                ldaa    #4
+                jsr     snd_play
+et_hit:         sec
+                rts
+et_miss:        clc
                 rts
 
 boss_die:                               ; the core is spent
@@ -1139,7 +1344,18 @@ boss_dying_f1:  stx     obj
                 ldd     #anim_boom
                 jmp     obj_anim_start
 bd_gone:
-                ldx     #core           ; the end: the boss is gone
+                ldx     #env1           ; the end: the boss is gone
+                jsr     obj_erase
+                ldx     #env2
+                jsr     obj_erase
+                ldx     #env1
+                ldd     #0
+                std     O_SPR,x
+                std     AN_PTR,x
+                ldx     #env2
+                std     O_SPR,x
+                std     AN_PTR,x
+                ldx     #core
                 jsr     obj_erase
                 ldx     #core
                 ldd     #0
@@ -1158,6 +1374,10 @@ score_50:                               ; score += 50 (BCD)
                 ldaa    score+2
                 adda    #$50
                 jmp     sc_lo
+score_500:                              ; score += 500 (BCD)
+                ldaa    score+1
+                adda    #$05
+                jmp     sc_mid
 score_5000:                             ; score += 5000 (BCD)
                 ldaa    score+1
                 adda    #$50
@@ -1844,35 +2064,36 @@ area4:
                 fdb     0
 
 ; Bosses, per area: core hits, escort wave list (it loops)
-boss_tab:       fcb     8
+; (core hits, envoys, hits per envoy, escorts)
+boss_tab:       fcb     8, 0, 0
                 fdb     esc1
-                fcb     12
+                fcb     10, 2, 4
                 fdb     esc2
-                fcb     16
+                fcb     12, 2, 6
                 fdb     esc3
-                fcb     20
+                fcb     14, 2, 8
                 fdb     esc4
 esc1:           fdb     saucer_dsc, path_circle
                 fcb     4, 20, 35, 0
                 fdb     dart_dsc, path_zigRL
                 fcb     4, 20, 21, 12
                 fdb     0
-esc2:           fdb     orbiter_dsc, path_circleR
-                fcb     5, 16, 84, 0
-                fdb     saucer_dsc, path_loopL
-                fcb     5, 16, 30, 0
+esc2:           fdb     orbiter_dsc, path_circleR  ; (envoy bosses: fewer
+                fcb     4, 16, 84, 0               ; escorts, the envoys
+                fdb     saucer_dsc, path_loopL     ; bring the danger)
+                fcb     4, 16, 30, 0
                 fdb     0
 esc3:           fdb     dart_dsc, path_zigLR
-                fcb     6, 14, 103, -12
+                fcb     4, 14, 103, -12
                 fdb     orbiter_dsc, path_circle
-                fcb     6, 14, 35, 0
+                fcb     4, 14, 35, 0
                 fdb     0
 esc4:           fdb     saucer_dsc, path_loopR
-                fcb     6, 12, 89, 0
+                fcb     4, 12, 89, 0
                 fdb     dart_dsc, path_zigRL
-                fcb     6, 12, 15, 12
+                fcb     4, 12, 15, 12
                 fdb     orbiter_dsc, path_circleR
-                fcb     6, 12, 84, 0
+                fcb     4, 12, 84, 0
                 fdb     0
 
 ; Explosion: frames of 4 game frames each, then the slot is freed
@@ -1924,7 +2145,7 @@ s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
                 fdb     shipw1_dsc, shipw2_dsc, boss1_dsc, core_dsc
-                fdb     corehit_dsc, 0
+                fdb     corehit_dsc, envoy_dsc, coreshut_dsc, 0
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -2005,6 +2226,11 @@ fx_clang:                               ; a hit on the core
                 fcb     8, SND_TONE
                 fdb     520, 40
                 fcb     0
+fx_open:                                ; the core's hatch opens
+                NOTE    N_C4, 6
+                NOTE    N_G4, 6
+                NOTE    N_C5, 12
+                fcb     0
 fx_bossdie:                             ; the boss goes up: a long roar
                 fcb     10, SND_NOISE
                 fdb     250, 0
@@ -2040,6 +2266,8 @@ star_end:
 objs:
 boss:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 core:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+env1:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+env2:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 aliens:
                 rept    NALIEN
                 fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0

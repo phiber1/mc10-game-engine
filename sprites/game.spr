@@ -118,3 +118,24 @@ WWWW
 WWWW
 WWWW
 end
+
+# Boss envoy, 8x8: flies beside the boss (moving with it) and bombs.
+sprite envoy artifact halo 1 1
+..WWWW..
+.WBBBBW.
+WBBWWBBW
+WBWOOWBW
+WBBWWBBW
+.WBBBBW.
+..O..O..
+.O....O.
+end
+
+# The core behind its closed hatch, while envoys protect it (same box as
+# core, so switching needs no erase)
+sprite coreshut artifact halo 1 1
+BBBB
+BWWB
+BWWB
+BBBB
+end

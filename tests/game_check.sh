@@ -67,6 +67,21 @@ out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$AREA_DONE,01 pok
 check "the boss arrives after the waves" "[ $(echo "$out" | memval $BS 1) -eq 2 ]"
 check "hits on the core destroy it; warp to area 2" "[ $(echo "$out" | memval $AREA) -eq 1 ] && [ $(echo "$out" | memval $MODE) -eq 0 ]"
 
+# 4b. Area 2's boss has envoys: its core stays shut (shots do nothing)
+#     until both envoys are destroyed, then it can be killed.  The ship is
+#     kept invulnerable (the envoys bomb heavily).
+EL=$(sym env_left); IV=$(sym invuln)
+keep=""; for i in $(seq 1 10); do keep="$keep frames:20 poke:$IV,F0"; done
+out=$(run frames:30 'type: ' frames:300 poke:$AREA,01 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 $keep frames:130 \
+      poke:$BOSS,32 poke:$BDX,0000 poke:$SHIP,3A "type:$sp" $keep mem:$HP,1 mem:$EL,1 \
+      poke:$SHIP,26 "type:$sp" $keep poke:$SHIP,4E "type:$sp" $keep mem:$EL,1 \
+      poke:$SHIP,3A "type:$sp" $keep $keep mem:$BS,1 mem:$AREA,1)
+hp0=$(echo "$out" | memval $HP 1); e0=$(echo "$out" | memval $EL 1); e1=$(echo "$out" | memval $EL 2)
+check "shut core takes no hits while envoys fly (core $hp0 of 10, envoys $e0)" "[ $hp0 -eq 10 ] && [ $e0 -eq 2 ]"
+check "both envoys destroyed (left: $e1)" "[ $e1 -eq 0 ]"
+bs3=$(echo "$out" | memval $BS 1)
+check "then the open core is destroyed (boss state $bs3: dying, defeated or won)" "[ $bs3 -ge 3 ] || [ $bs3 -eq 0 ]"
+
 # 5. The frame budget holds with fire held for ~30 s.
 sp=$(printf '%*s' 400 '')
 over=$(run dbgport:BE00 frames:30 'type: ' frames:200 "type:$sp" frames:1800 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700{o++} END{printf "%d", 100*o/NR}')

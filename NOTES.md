@@ -497,3 +497,20 @@ blue.  `bench/waves.asm` converted:
 * Next bosses (owner's design): envoys on either side that bomb heavily,
   the core shielded until all envoys are destroyed; later bosses with
   more envoys and several weak spots that must all be destroyed.
+
+### Envoy bosses (areas 2-4)
+
+* Boss table per area: core hits, envoys (0 or 2), hits per envoy,
+  escorts.  Area 1: the plain mothership; areas 2-4: two envoys (4/6/8
+  hits) flanking the hull (moving with it; the sway range narrows to keep
+  them on screen), bombing every 16 frames outside the spray rhythm
+  (`bomb_force`).  The core shows a closed hatch (coreshut) and pings
+  until both envoys are destroyed (+500 each); then it opens (a rising
+  chime) and takes damage.  Same hull as boss 1 (a new hull is ~3K).
+* Collisions: envoys get a quick horizontal reject; the core and hull
+  tests use simple column/row checks (the quick reject already put the
+  shot in the boss's rows).  Escort waves are smaller in envoy fights.
+* Frame budget (worst case: fire held, test ship kept invulnerable and
+  flashing): ~6-9% of frames over in envoy fights, a brief slowdown like
+  arcade boss fights.  Normal play: 0%.
+* make check: the shut core takes no hits, both envoys die, then the core.
