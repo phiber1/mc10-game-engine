@@ -526,3 +526,7 @@ blue.  `bench/waves.asm` converted:
   copies with LDD/PSHB/PSHA and clears its blank rows.  Now: median 7.2K,
   p95 11.1K, 0.6% over, better than the old build.  The budget check now
   uses that sweep-and-fire scenario (limit 2%).
+* **Sliding window (owner's idea):** at most MAX_ALIVE = 8 live aliens fly
+  at once; the rest of a wave (and relaunched survivors, and escorts) wait
+  their turn and slip in as others die.  The area's tally is unchanged.
+  make check: never more than 8 seen in two minutes of play.

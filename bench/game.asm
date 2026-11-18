@@ -31,6 +31,7 @@ SHIP_YMIN       equ     120
 SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
 WAVE_GAP        equ     90              ; frames between waves
+MAX_ALIVE       equ     8               ; live aliens on screen at most
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
@@ -306,6 +307,9 @@ wave_logic:
                 bne     wl_done
                 ldaa    wv_left
                 beq     wl_next         ; all launched: wait for the next wave
+                ldaa    alive           ; at most MAX_ALIVE flying at once:
+                cmpa    #MAX_ALIVE      ; the rest wait their turn (the area's
+                bcc     wl_wait         ; tally is the same)
                 ldx     #aliens         ; launch one into a free slot
 wave_logic_b1:  ldd     O_SPR,x
                 beq     wave_logic_f1
@@ -313,7 +317,7 @@ wave_logic_b1:  ldd     O_SPR,x
                 abx
                 cpx     #aliens_end
                 bne     wave_logic_b1
-                inc     wv_timer        ; none free: try next frame
+wl_wait:        inc     wv_timer        ; none free: try next frame
                 rts
 wave_logic_f1:  stx     obj
                 ldx     wv_ptr

@@ -41,6 +41,13 @@ early=$(run frames:30 'type: ' frames:200 poke:$(sym lives),09 "type:$mv$mv" $sa
         awk '{w=strtonum("0x"$3); d=strtonum("0x"$6); b=strtonum("0x"$9); a=strtonum("0x"$12); if(a==0 && (d||b) && w<3) e++} END{print e+0}')
 check "no early area end or boss in normal play (bad samples: $early)" "[ $early -eq 0 ]"
 
+# 2a. At most 8 live aliens fly at once (a sliding window: the rest of a
+#     wave waits its turn), sampled every 10 frames over two minutes.
+samples=""; for i in $(seq 1 700); do samples="$samples frames:10 mem:$ALIVE,1"; done
+mv2=""; for i in $(seq 1 60); do mv2="$mv2 A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
+most=$(run frames:30 'type: ' frames:250 poke:$(sym lives),09 "type:$mv2" $samples | grep '^mem' | awk '{a=strtonum("0x"$3); if(a>m)m=a} END{print m+0}')
+check "never more than 8 aliens flying (most seen: $most)" "[ $most -le 8 ] && [ $most -ge 6 ]"
+
 # 2b. Losing a ship clears the field: with aliens flying, the ship is
 #     lost (dead set, its countdown about to end); right after the respawn
 #     no alien is left, and later the survivors come back.
