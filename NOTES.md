@@ -615,12 +615,15 @@ blue.  `bench/waves.asm` converted:
   85-198 frames; check 2e verifies an empty screen before every
   re-entry.
 * **Agreed plan, in order:**
-  1. Memory pass: spritec option to compile a sprite for ONE shift (the
-     table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap
-     ship x to that shift at warp_begin (<=3 px; it's redrawn then
-     anyway) -> saves ~2.6K main.  Explosions (boom1-4, ~3.3K, low
-     segment): snap x to a byte boundary at obj_anim_start time (aliens,
-     boss bursts), drift vertically only -> saves ~2.5K low.
+  1. Done: memory pass.  spritec "shift S" compiles one shift and points
+     every table entry at it (the game keeps x on that shift and never
+     moves the sprite across).  Warp ship shipw1/2: shift 3, the arrival
+     x (128-ship_W)/2 = 59 is on it (an assembly-time check guards that);
+     warp_begin snaps x to it (x|3, minus 4 past SHIP_XMAX) after its
+     erase.  Explosions boom1-4: shift 0; every explosion starts through
+     boom_start (obj_anim_start, then x &= $FC, DX = 0: debris drifts
+     only vertically).  Main $6000-$9B73 (was $A54C: -2521 bytes, ~4.7K
+     free), low $0400-$14F2 (was $1E6B: -2425 bytes, ~2.8K free).
   2. A new hull for the area 2 boss (envoys + shielded core as now).
   3. More wrap-around waves in the areas.
   4. Later: bosses 3 and 4 distinct (smaller hulls, parts reuse, more

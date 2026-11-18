@@ -44,7 +44,7 @@ end
 # The ship at warp speed, with its afterburner: two flame lengths that
 # alternate (same height, so each one's halo covers the other's flame and
 # switching needs no erase).  Flies straight up at up to 4 rows a frame: halo 0 across, 4 down.
-sprite shipw1 artifact halo 1 6
+sprite shipw1 artifact halo 1 6 shift 3
 ...WW...
 ...WW...
 ..WBBW..
@@ -65,7 +65,7 @@ W..OO..W
 ........
 end
 
-sprite shipw2 artifact halo 1 6
+sprite shipw2 artifact halo 1 6 shift 3
 ...WW...
 ...WW...
 ..WBBW..

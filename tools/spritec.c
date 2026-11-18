@@ -4,7 +4,7 @@
  *
  * Input: one or more sprites
  *
- *   sprite NAME mono|artifact [pad N] [halo N | halo X Y] [delta]
+ *   sprite NAME mono|artifact [pad N] [halo N | halo X Y] [delta] [shift S]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -31,6 +31,11 @@
  *               read-modify-write pass, so the sprite is never missing.
  *               Tables NAME_dt (9 pointers) -> NAME_dt<d> (one per shift).
  *               Call through spr_mono_d / spr_art_d with the OLD x, y.
+ *   "shift S" compiles only shift S, and every entry of the routine tables
+ *   points at it: the game must keep the sprite's x on that shift (x & 3
+ *   = S for artifact, x & 7 for mono) and not move it across.  For big
+ *   sprites that never move sideways (a warp ship, explosions) it saves
+ *   three quarters (or seven eighths) of their code.
  *   NAME_W, NAME_H (including the pad), NAME_SHIFTS, NAME_PAD (= NAME_PADX),
  *   NAME_PADX, NAME_PADY.  "halo X Y" grows the halo X pixels across and
  *   Y rows down (artifact sprites: move half as far across as down).
@@ -50,7 +55,7 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, w, h, pad, padx, pady, delta, halo, halox, haloy;
+static int artifact, w, h, pad, padx, pady, delta, halo, halox, haloy, oneshift;
 static char art[MAXH][MAXW + 1];
 static unsigned char hal[MAXH][MAXW];   /* halo: sprite grown by `halo` pixels */
 
@@ -258,10 +263,12 @@ static void emit(void)
     int nk = (int)strlen(kinds);
     for (int k = 0; k < nk; k++) {
         printf("%s_%cr:\n", name, kinds[k]);
-        for (int s = 0; s < shifts; s++) printf("\tfdb\t%s_%cr%d\n", name, kinds[k], s);
+        for (int s = 0; s < shifts; s++)
+            printf("\tfdb\t%s_%cr%d\n", name, kinds[k], oneshift >= 0 ? oneshift : s);
     }
     for (int k = 0; k < nk; k++)
-        for (int s = 0; s < shifts; s++) routine(kinds[k], s);
+        for (int s = 0; s < shifts; s++)
+            if (oneshift < 0 || s == oneshift) routine(kinds[k], s);
     if (delta) emit_delta();
     if (halo) {
         /* a sprite manager descriptor (engine/sprman.asm) with the hitbox */
@@ -306,7 +313,7 @@ int main(int argc, char **argv)
         lineno++;
         line[strcspn(line, "\r\n")] = 0;
         if (!in) {
-            pad = padx = pady = 0; delta = 0; halo = halox = haloy = 0;
+            pad = padx = pady = 0; delta = 0; halo = halox = haloy = 0; oneshift = -1;
             if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
                 /* options after the mode, in any order:
                  * pad N, halo N, halo X Y (across, down), delta */
@@ -322,6 +329,7 @@ int main(int argc, char **argv)
                         padx = halox; pady = haloy; pad = halox;
                     }
                     else if (!strcmp(tok[i], "pad") && i + 1 < nt) pad = padx = pady = atoi(tok[++i]);
+                    else if (!strcmp(tok[i], "shift") && i + 1 < nt) oneshift = atoi(tok[++i]);
                     else { fprintf(stderr, "%s:%d: bad option %s\n", argv[1], lineno, tok[i]); return 1; }
                 }
                 if (padx < 0 || padx > 16 || pady < 0 || pady > 16) {
@@ -329,6 +337,10 @@ int main(int argc, char **argv)
                     return 1;
                 }
                 artifact = !strcmp(mode, "artifact");
+                if (oneshift >= (artifact ? 4 : 8) || (oneshift >= 0 && delta)) {
+                    fprintf(stderr, "%s:%d: bad shift (0-3 artifact, 0-7 mono; not with delta)\n", argv[1], lineno);
+                    return 1;
+                }
                 if (!artifact && strcmp(mode, "mono")) {
                     fprintf(stderr, "%s:%d: mode must be mono or artifact\n", argv[1], lineno);
                     return 1;

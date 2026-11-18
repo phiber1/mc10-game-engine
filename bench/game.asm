@@ -555,6 +555,20 @@ al_next:
                 jmp     al_loop
 al_done:        rts
 
+; an explosion for the object at X, D = frame list: the boom sprites are
+; compiled for shift 0 only (spritec "shift 0": a quarter of the code),
+; so x snaps down to a byte boundary (after the old image is erased) and
+; the debris drifts only up or down
+boom_start:
+                jsr     obj_anim_start
+                ldx     an_obj
+                ldaa    O_X,x
+                anda    #$FC
+                staa    O_X,x
+                ldd     #0
+                std     O_DX,x
+                rts
+
 ; event 2/3 (A) for the alien at X: from now on it comes back in from
 ; the top at a random x (2: for left circles, 3: right ones)
 hop_flag:
@@ -849,7 +863,7 @@ ship_hit:
                 std     O_DX,x
                 std     O_DY,x
                 ldd     #anim_shipboom
-                jsr     obj_anim_start
+                jsr     boom_start
                 ldx     #fx_shipboom
                 ldaa    #3
                 jmp     snd_play
@@ -974,7 +988,7 @@ ca_loop:                                ; tight: most pairs are rejected here
                 asr     O_DY,x
                 ror     O_DY+1,x
                 ldd     #anim_boom
-                jsr     obj_anim_start
+                jsr     boom_start
                 dec     alive
                 jsr     score_10
                 ldx     #fx_boom
@@ -1049,7 +1063,7 @@ cc_loop:
                 ldx     ht_a
                 bcc     cc_next
                 ldd     #anim_boom      ; collision: both explode
-                jsr     obj_anim_start
+                jsr     boom_start
                 dec     alive
                 jsr     score_10
                 jmp     ship_hit
@@ -1427,7 +1441,7 @@ et_down:        ldx     ht_b            ; destroyed: it explodes ...
                 std     O_DX,x
                 std     O_DY,x
                 ldd     #anim_boom
-                jsr     obj_anim_start
+                jsr     boom_start
                 jsr     score_500
                 ldx     #fx_boom
                 ldaa    #3
@@ -1465,7 +1479,7 @@ boss_die_b1:    stx     obj
                 ldd     AN_PTR,x
                 bne     boss_die_f1
                 ldd     #anim_boom
-                jsr     obj_anim_start
+                jsr     boom_start
                 dec     alive
 boss_die_f1:    ldx     obj
                 ldab    #OBJ_SIZE
@@ -1510,7 +1524,7 @@ boss_dying_f1:  stx     obj
                 std     O_DX,x
                 std     O_DY,x
                 ldd     #anim_boom
-                jmp     obj_anim_start
+                jmp     boom_start
 bd_gone:
                 ldx     #env1           ; the end: the boss is gone
                 jsr     obj_erase
@@ -1561,6 +1575,12 @@ warp_begin:
                 ldx     #ship
                 ldd     #shipw1_dsc
                 std     O_SPR,x
+                ldaa    O_X,x           ; compiled for shift 3 only (the
+                oraa    #3              ; arrival x, (128-ship_W)/2, is on
+                cmpa    #SHIP_XMAX      ; it): snap x to it, inside the
+                bls     warp_begin_f1   ; ship's range
+                suba    #4
+warp_begin_f1:  staa    O_X,x
                 ldx     #fx_warp
                 ldaa    #8
                 jmp     snd_play
@@ -2572,3 +2592,9 @@ objs_end:
 #include "game_lo_spr.inc"
 #include "sintab.asm"
                 LOW_CHECK
+
+; the ship arrives at x (128-ship_W)/2 in its warp sprite, compiled for
+; shift 3 only (warp_begin snaps x to it)
+                if      (((128-ship_W)/2)&3)<>3
+                error   "the arrival x must be on the warp ship's shift (3)"
+                endif

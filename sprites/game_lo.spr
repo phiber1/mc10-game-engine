@@ -44,7 +44,7 @@ O......O
 end
 
 # Explosion: four frames in the aliens' 8x10 box (flash, burst, ring, debris)
-sprite boom1 artifact halo 1 2
+sprite boom1 artifact halo 1 2 shift 0
 ........
 ........
 ...WW...
@@ -57,7 +57,7 @@ sprite boom1 artifact halo 1 2
 ........
 end
 
-sprite boom2 artifact halo 1 2
+sprite boom2 artifact halo 1 2 shift 0
 ........
 .O..W..O
 ..OWWO..
@@ -70,7 +70,7 @@ OWO..OWO
 ........
 end
 
-sprite boom3 artifact halo 1 2
+sprite boom3 artifact halo 1 2 shift 0
 O..W...O
 ..O..O..
 .W....W.
@@ -83,7 +83,7 @@ O...W..O
 ........
 end
 
-sprite boom4 artifact halo 1 2
+sprite boom4 artifact halo 1 2 shift 0
 ........
 .B....O.
 ........
