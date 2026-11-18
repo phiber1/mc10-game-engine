@@ -57,6 +57,8 @@ BS_DYING        equ     3               ; exploding
 BS_DEFEATED     equ     4               ; gone: the area is won
 BOSS_Y          equ     24              ; where it stops descending
 BOSS_SPEED      equ     $0080           ; half a pixel a frame
+BOSS_DESCEND    equ     $0040           ; a slow, ominous descent
+WARN_TIME       equ     240             ; the warning: siren and flashing banner
 BOSS_XMIN       equ     4
 BOSS_XMAX       equ     128-boss1_W-4
 CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
@@ -107,6 +109,7 @@ mode_t          rmb     1
 wp_wrapped      rmb     1
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
+banner_fl       rmb     1               ; the banner flashes
 mp_t            rmb     1
 mp_a            rmb     2
 bm_xy           rmb     2               ; bomb_at: the bomb's position
@@ -510,7 +513,8 @@ sl_play_f1:     dec     dead_t
                 bne     sl_ret
                 tst     lives
                 beq     sl_over
-                jsr     map_show        ; where we are
+                jsr     field_clear     ; a fresh screen ...
+                jsr     map_show        ; ... after the map
                 clr     dead            ; another ship
                 jsr     ship_place
                 ldaa    #INVULN_TIME
@@ -591,6 +595,28 @@ sl_done:        ldd     O_SPR,x         ; hidden (flashing): the sprite manager
                 addd    O_DY,x
                 std     O_Y,x
 sl_done_f1:     rts
+
+; After a lost ship: every alien, bomb and shot goes.  Aliens that weren't
+; destroyed still count: they are launched again along the current wave's
+; path.  (In a boss fight the boss stays; its escorts start over.)
+field_clear:
+                ldx     #aliens         ; empty the alien, bomb and shot slots
+fc_clear:       clr     0,x
+                inx
+                cpx     #shots_end
+                bne     fc_clear
+                ldaa    alive           ; the survivors must come again
+                beq     fc_done
+                adda    wv_left
+                staa    wv_left
+                clr     alive
+                clr     area_done
+                ldx     wv_ptr          ; from the wave's entry point
+                ldaa    W_X,x
+                staa    wv_x
+                ldaa    #60
+                staa    wv_timer
+fc_done:        rts
 
 ship_place:                             ; a fresh ship at the bottom centre
                 ldx     #ship
@@ -889,7 +915,7 @@ boss_start:
                 clr     O_YF,x
                 ldd     #0
                 std     O_DX,x
-                ldd     #BOSS_SPEED
+                ldd     #BOSS_DESCEND
                 std     O_DY,x
                 ldd     #boss1_dsc
                 std     O_SPR,x
@@ -910,7 +936,7 @@ boss_start:
                 stx     wv_ptr
                 jsr     wave_begin
                 clr     area_done
-                ldaa    #150            ; escorts after it has arrived
+                ldaa    #WARN_TIME      ; escorts after the warning
                 staa    wv_timer
                 ldaa    #BOSS_FIRE
                 staa    boss_t
@@ -918,7 +944,11 @@ boss_start:
                 ldaa    #5
                 jsr     snd_play
                 ldd     #s_bossin
-                jmp     banner_show
+                jsr     banner_show
+                ldaa    #WARN_TIME
+                staa    banner_t
+                inc     banner_fl       ; flashing
+                rts
 
 bl_r0:          rts
 boss_logic:
@@ -1303,8 +1333,7 @@ map_show_b1:    ldaa    col_b
                 ldaa    #MAP_BOTTOM+MAP_SEG
                 suba    mp_t
                 suba    #ship_H-ship_PADY
-                ldab    wv_index        ; 6 rows per wave
-                aslb
+                ldab    wv_index        ; 3 rows per wave (up to 10 waves)
                 stab    mp_t
                 aslb
                 addb    mp_t
@@ -1332,10 +1361,7 @@ map_mark:                               ; X = row start: a checkpoint marker
                 staa    0,x
                 staa    ROW_BYTES,x
                 staa    2*ROW_BYTES,x
-                ldab    #2              ; and BOSS beside it
-                abx
-                ldd     #s_boss
-                jmp     txt_str
+                rts                     ; (what waits there is a mystery)
 
 ; A = area number (0-3): its label to the left of the strip, white for
 ; the current area, blue for the others
@@ -1492,6 +1518,7 @@ banner_show:
                 std     banner_p
                 ldaa    #BANNER_TIME
                 staa    banner_t
+                clr     banner_fl       ; steady unless the caller says
                 rts
 
 banner_update:                          ; redraw it each frame while up (the
@@ -1499,7 +1526,12 @@ banner_update:                          ; redraw it each frame while up (the
                 beq     bu_done         ; the end
                 dec     banner_t
                 beq     bu_clear
-                ldaa    #TXT_WHITE
+                tst     banner_fl       ; flashing: off every other 16 frames
+                beq     bu_draw
+                ldaa    banner_t
+                bita    #16
+                beq     bu_clear
+bu_draw:        ldaa    #TXT_WHITE
                 staa    txt_col
                 ldx     banner_p
                 ldd     0,x
@@ -1734,27 +1766,45 @@ pcr_rep:        fcb     P_FLY, 40, 0
                 fcb     P_GOTO
                 fdb     pcr_rep
 
-; Areas: each a list of waves (descriptor, path; count, launch interval,
-; entry x, x step), ending with fdb 0.  At most 5 waves an area (the map
-; shows 6 rows per wave).  Later areas launch faster and mix more.
+; Areas: each a list of waves, ending with fdb 0.  At most 10 waves an
+; area (the map shows 3 rows per wave).  Later areas launch faster.
 areas:          fdb     area1, area2, area3, area4
-area1:
+; (Each wave: descriptor, path; count, launch interval, entry x, x step.)
+area1:                                  ; gentle: 6 at a time, then 8
                 fdb     saucer_dsc, path_loopL
                 fcb     6, 14, 30, 0
                 fdb     dart_dsc, path_zigRL
                 fcb     6, 16, 21, 12
                 fdb     orbiter_dsc, path_circle
                 fcb     6, 14, 35, 0
+                fdb     saucer_dsc, path_loopR
+                fcb     6, 14, 89, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     6, 16, 103, -12
+                fdb     orbiter_dsc, path_circleR
+                fcb     6, 14, 84, 0
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 12, 30, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 14, 15, 12
                 fdb     0
 area2:
                 fdb     saucer_dsc, path_loopR
                 fcb     8, 12, 89, 0
                 fdb     dart_dsc, path_zigLR
-                fcb     8, 16, 103, -12
+                fcb     8, 14, 103, -12
                 fdb     orbiter_dsc, path_circleR
                 fcb     8, 12, 84, 0
                 fdb     saucer_dsc, path_loopL
                 fcb     8, 12, 30, 0
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 12, 35, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 14, 15, 12
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 11, 89, 0
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 11, 84, 0
                 fdb     0
 area3:
                 fdb     dart_dsc, path_zigRL
@@ -1765,6 +1815,14 @@ area3:
                 fcb     8, 10, 89, 0
                 fdb     dart_dsc, path_zigLR
                 fcb     8, 12, 103, -12
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 10, 30, 0
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 10, 84, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 11, 15, 12
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 9, 89, 0
                 fdb     0
 area4:
                 fdb     orbiter_dsc, path_circleR
@@ -1777,6 +1835,12 @@ area4:
                 fcb     8, 9, 35, 0
                 fdb     dart_dsc, path_zigLR
                 fcb     8, 10, 103, -12
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 9, 89, 0
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 8, 84, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 9, 15, 12
                 fdb     0
 
 ; Bosses, per area: core hits, escort wave list (it loops)
@@ -1836,8 +1900,6 @@ s_gameover:     fdb     TXT_AT(BANNER_ROW,11)
 s_player:       fcc     "PLAYER 1"
                 fcb     0
 s_area:         fcc     "AREA "
-                fcb     0
-s_boss:         fcc     "BOSS"
                 fcb     0
 s_cleared:      fdb     TXT_AT(BANNER_ROW,10)
                 fcc     "AREA CLEARED"
@@ -1925,13 +1987,13 @@ fx_warp:                                ; the afterburner: a rising roar
                 fcb     60, SND_NOISE
                 fdb     420, 0
                 fcb     0
-fx_bossin:                              ; the boss arrives: a warning siren
-                fcb     20, SND_TONE
-                fdb     900, -20
-                fcb     20, SND_TONE
-                fdb     900, -20
-                fcb     20, SND_TONE
-                fdb     900, -20
+fx_bossin:                              ; the boss arrives: eight low, falling
+                rept    8               ; wails (~4 s; low tones are cheap)
+                fcb     24, SND_TONE
+                fdb     1200, 16
+                fcb     6, SND_REST
+                fdb     0, 0
+                endm
                 fcb     0
 fx_ping:                                ; a shot bounces off the hull (kept
                 fcb     3, SND_TONE     ; below ~1 kHz: high tones cost CPU)

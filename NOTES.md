@@ -487,3 +487,13 @@ blue.  `bench/waves.asm` converted:
   wave (it flags the buggy build: 52 bad samples of 60).
 * Rule from now on: no new nameless labels in the game; convert engine
   files the same way when next touching them.
+* **Playtest round (owner):** losing a ship now clears the field (aliens,
+  bombs, shots); survivors are relaunched along the current wave's path
+  and still count toward the area.  Areas doubled to 8 waves each
+  (remixed types and paths, later areas faster; the map shows 3 rows per
+  wave).  Boss theatrics: ~4 s of eight low falling wails, a flashing
+  WARNING!, a slow descent, escorts only after the warning.  The map
+  no longer labels the checkpoints: the bosses are a mystery.
+* Next bosses (owner's design): envoys on either side that bomb heavily,
+  the core shielded until all envoys are destroyed; later bosses with
+  more envoys and several weak spots that must all be destroyed.

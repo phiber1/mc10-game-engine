@@ -41,6 +41,15 @@ early=$(run frames:30 'type: ' frames:200 poke:$(sym lives),09 "type:$mv$mv" $sa
         awk '{w=strtonum("0x"$3); d=strtonum("0x"$6); b=strtonum("0x"$9); a=strtonum("0x"$12); if(a==0 && (d||b) && w<3) e++} END{print e+0}')
 check "no early area end or boss in normal play (bad samples: $early)" "[ $early -eq 0 ]"
 
+# 2b. Losing a ship clears the field: with aliens flying, the ship is
+#     lost (dead set, its countdown about to end); right after the respawn
+#     no alien is left, and later the survivors come back.
+DEAD=$(sym dead); DEADT=$(sym dead_t); LIVESV=$(sym lives); ALIVEV=$(sym alive)
+out=$(run frames:30 'type: ' frames:400 poke:$LIVESV,09 mem:$ALIVEV,1 poke:$DEAD,01 poke:$DEADT,02 frames:10 mem:$ALIVEV,1 frames:300 mem:$ALIVEV,1 mem:$DEAD,1)
+a0=$(echo "$out" | memval $ALIVEV 1); a1=$(echo "$out" | memval $ALIVEV 2); a2=$(echo "$out" | memval $ALIVEV 3)
+check "aliens flying ($a0) are cleared when the ship is lost ($a1 after the respawn)" "[ $a0 -gt 0 ] && [ $a1 -eq 0 ] && [ $(echo "$out" | memval $DEAD) -eq 0 ]"
+check "and they come back afterwards ($a2)" "[ $a2 -gt 0 ]"
+
 # 3. A won area (waves cleared, boss defeated) goes through salute, warp,
 #    map and arrival to the next area, back in play mode.
 n=$(( 0x$SHOTS_END - 0x$ALIENS ))
