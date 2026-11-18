@@ -50,6 +50,19 @@ MODE_WARP       equ     2               ; blasting off, up behind the status bar
 MODE_COAST      equ     3               ; gone: just the streaking stars
 MODE_ARRIVE     equ     4               ; rising in from the bottom, braking
 COAST_TIME      equ     70
+BS_NONE         equ     0               ; boss states
+BS_ENTER        equ     1               ; descending from under the status bar
+BS_FIGHT        equ     2
+BS_DYING        equ     3               ; exploding
+BS_DEFEATED     equ     4               ; gone: the area is won
+BOSS_Y          equ     24              ; where it stops descending
+BOSS_SPEED      equ     $0080           ; half a pixel a frame
+BOSS_XMIN       equ     4
+BOSS_XMAX       equ     128-boss1_W-4
+CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
+CORE_DY         equ     boss1_PADY+4-core_PADY  ; opening
+BOSS_FIRE       equ     22              ; frames between cannon shots
+DIE_TIME        equ     120             ; frames of explosions
 SALUTE_TIME     equ     110
 MAP_TIME        equ     130             ; frames the map screen stays up
 MAP_SEG         equ     30              ; map rows per area
@@ -76,6 +89,7 @@ warpf           rmb     1               ; star updates per frame
 banner_t        rmb     1               ; frames the banner stays up
 status_t        rmb     1
 area_done       rmb     1               ; the area's waves are all launched
+boss_state      rmb     1               ; BS_NONE ... BS_DEFEATED
                 DP_CHECK
 
                 org     BSS             ; ordinary RAM: the rest
@@ -95,6 +109,12 @@ banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
 mp_t            rmb     1
 mp_a            rmb     2
+bm_xy           rmb     2               ; bomb_at: the bomb's position
+boss_hp         rmb     1               ; core hits left
+boss_t          rmb     1               ; boss timer (bombs, dying)
+core_flash      rmb     1               ; frames the core stays white
+boss_side       rmb     1               ; which cannon fires next
+wv_start        rmb     2               ; the escort list (it loops)
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
 sr_dst          rmb     2
@@ -192,6 +212,7 @@ game_start:
                 jsr     ship_place
                 clr     area
                 clr     mode
+                clr     boss_state
                 ldaa    #1
                 staa    warpf
                 ldx     #fx_start       ; the start fanfare, over the map
@@ -210,6 +231,7 @@ loop:
                 jsr     fire_logic
                 jsr     wave_logic
                 jsr     aliens_logic
+                jsr     boss_logic
                 jsr     bombs_logic
                 jsr     shots_logic
                 jsr     collide
@@ -314,8 +336,13 @@ wl_next:                                ; next wave when at most 2 remain
                 inc     wv_index
                 ldd     0,x
                 bne     +
-                inc     area_done       ; the end of the area's waves
+                tst     boss_state      ; a boss fight: the escorts go round
+                beq     +               ; again
+                ldx     wv_start
+                bra     ++
++               inc     area_done       ; the end of the area's waves
                 rts
++
 +               stx     wv_ptr
                 ldaa    W_X,x
                 staa    wv_x
@@ -386,16 +413,26 @@ al_next:
                 bne     al_loop
                 rts
 
-; drop a bomb from the alien at obj, if it's on screen above the ship
+; drop a bomb from the alien at obj
 drop_bomb:
+                ldx     obj
+                ldaa    O_X,x
+                adda    #saucer_PADX+3-bomb_PADX
+                ldab    O_Y,x
+                addb    #saucer_H-saucer_PADY-bomb_PADY
+                ; fall through
+
+; a bomb at A = x, B = y (its box), if the rhythm allows and it's above
+; the ship's area
+bomb_at:
+                std     bm_xy
                 ldaa    bomb_cd         ; too soon after the last bomb?
                 bne     db_done
                 ldaa    spray_t         ; in a spray window?
                 cmpa    #SPRAY_ON
                 bcc     db_done
-                ldx     obj
-                ldaa    O_Y,x
-                cmpa    #SHIP_YMIN-16
+                ldaa    bm_xy+1         ; above the ship's area?
+                cmpa    #SHIP_YMIN-8
                 bcc     db_done
                 ldx     #bombs
 -               ldd     O_SPR,x
@@ -405,13 +442,7 @@ drop_bomb:
                 cpx     #bombs_end
                 bne     -
 db_done:        rts
-+               stx     obj2
-                ldx     obj
-                ldaa    O_X,x
-                adda    #saucer_PADX+3-bomb_PADX
-                ldab    O_Y,x
-                addb    #saucer_H-saucer_PADY-bomb_PADY
-                ldx     obj2
++               ldd     bm_xy
                 staa    O_X,x
                 stab    O_Y,x
                 clr     O_XF,x
@@ -673,6 +704,15 @@ cs_loop:
                 stx     ht_a
                 ldd     O_SPR,x
                 beq     cs_next
+                jsr     boss_shot       ; the boss first
+                bcc     +
+                ldx     ht_a            ; it hit the boss: the shot is spent
+                jsr     obj_erase
+                ldx     ht_a
+                ldd     #0
+                std     O_SPR,x
+                jmp     cs_next
++               ldx     ht_a
                 ldaa    O_Y,x           ; this shot's row, for the quick reject
                 adda    #24
                 staa    cy
@@ -805,10 +845,18 @@ victory_check:
                 bne     vc_done
                 tst     dead
                 bne     vc_done
-                tst     area_done
+                ldaa    boss_state
+                cmpa    #BS_DEFEATED
+                beq     vc_win
+                tst     area_done       ; waves cleared: the boss comes
                 beq     vc_done
                 tst     alive
                 bne     vc_done
+                tst     boss_state
+                bne     vc_done
+                jmp     boss_start
+vc_win:
+                clr     boss_state
                 ldaa    #MODE_SALUTE
                 staa    mode
                 ldaa    #SALUTE_TIME
@@ -820,6 +868,269 @@ victory_check:
                 ldd     #s_cleared
                 jmp     banner_show
 vc_done:        rts
+
+; ---------------------------------------------------------------- boss
+; The boss: a big sprite (boss) with its weak spot, the core (core), a
+; separate small sprite drawn over the boss's opening and moved with it.
+; Only shots on the core do damage; the hull just pings them away.  It
+; descends from under the status bar, sways and fires its cannons while
+; escorts loop around it, and explodes when its core is spent.
+
+boss_start:
+                ldaa    #BS_ENTER
+                staa    boss_state
+                ldx     #boss
+                ldaa    #(128-boss1_W)/2
+                staa    O_X,x
+                ldaa    #256-boss1_H    ; just above the top, hidden
+                staa    O_Y,x
+                clr     O_XF,x
+                clr     O_YF,x
+                ldd     #0
+                std     O_DX,x
+                ldd     #BOSS_SPEED
+                std     O_DY,x
+                ldd     #boss1_dsc
+                std     O_SPR,x
+                ldx     #core
+                ldd     #core_dsc
+                std     O_SPR,x
+                clr     core_flash
+                ldab    area            ; this area's toughness and escorts
+                ldaa    #3
+                mul
+                addd    #boss_tab
+                std     bm_xy
+                ldx     bm_xy
+                ldaa    0,x
+                staa    boss_hp
+                ldx     1,x
+                stx     wv_start
+                stx     wv_ptr
+                jsr     wave_begin
+                clr     area_done
+                ldaa    #150            ; escorts after it has arrived
+                staa    wv_timer
+                ldaa    #BOSS_FIRE
+                staa    boss_t
+                ldx     #fx_bossin
+                ldaa    #5
+                jsr     snd_play
+                ldd     #s_bossin
+                jmp     banner_show
+
+bl_r0:          rts
+boss_logic:
+                ldaa    boss_state
+                beq     bl_r0
+                cmpa    #BS_DEFEATED
+                beq     bl_r0
+                cmpa    #BS_DYING
+                bne     +
+                jmp     boss_dying
++               ldx     #boss
+                cmpa    #BS_ENTER
+                bne     bl_fight
+                ldaa    O_Y,x           ; descending: arrived?
+                cmpa    #BOSS_Y
+                bcs     bl_core         ; (still above: 224-255 counts as high)
+                cmpa    #192
+                bcc     bl_core
+                ldd     #0
+                std     O_DY,x
+                ldd     #BOSS_SPEED
+                std     O_DX,x
+                ldaa    #BS_FIGHT
+                staa    boss_state
+                bra     bl_core
+bl_fight:
+                ldd     O_X,x           ; sway between the sides
+                addd    O_DX,x
+                cmpa    #BOSS_XMIN
+                bcs     +
+                cmpa    #BOSS_XMAX
+                bcs     ++
++               ldd     #0
+                subd    O_DX,x
+                std     O_DX,x
++               dec     boss_t          ; the cannons, in turn
+                bne     bl_core
+                ldaa    #BOSS_FIRE
+                staa    boss_t
+                com     boss_side
+                ldaa    O_X,x
+                adda    #boss1_PADX+4-bomb_PADX
+                tst     boss_side
+                beq     +
+                adda    #14
++               ldab    O_Y,x
+                addb    #boss1_PADY+12-bomb_PADY
+                jsr     bomb_at
+bl_core:                                ; the core rides in the opening
+                ldx     #boss
+                ldaa    O_X,x
+                adda    #CORE_DX
+                ldab    O_Y,x
+                addb    #CORE_DY
+                ldx     #core
+                staa    O_X,x
+                stab    O_Y,x
+                ldx     #boss
+                ldd     O_DX,x
+                pshb
+                psha
+                ldd     O_DY,x
+                ldx     #core
+                std     O_DY,x
+                pula
+                pulb
+                std     O_DX,x
+                ldaa    core_flash      ; white for a moment after a hit
+                beq     bl_r
+                dec     core_flash
+                bne     bl_r
+                ldd     #core_dsc
+                std     O_SPR,x
+bl_r:           rts
+
+; a shot (ht_a) against the boss: carry set if it hit anything
+boss_shot:
+                ldaa    boss_state
+                cmpa    #BS_FIGHT
+                bne     bs_miss
+                ldx     ht_a            ; quick reject: the shot below the boss
+                ldaa    O_Y,x
+                ldx     #boss
+                suba    O_Y,x
+                cmpa    #boss1_H
+                bcc     bs_miss
+                ldx     #core
+                stx     ht_b
+                jsr     hit_test
+                bcs     bs_core
+                ldx     ht_a            ; in the core's column?  Then it flies
+                ldaa    O_X,x           ; up the channel to the core: not the
+                ldx     #core           ; hull
+                suba    O_X,x
+                adda    #shot_PADX-core_PADX
+                cmpa    #4              ; (the core is 4 pixels wide)
+                bcs     bs_miss
+                ldx     #boss
+                stx     ht_b
+                jsr     hit_test
+                bcc     bs_miss
+                ldx     #fx_ping        ; the hull: the shot bounces off
+                ldaa    #1
+                jsr     snd_play
+                sec
+                rts
+bs_miss:        clc
+                rts
+bs_core:
+                jsr     score_50
+                ldx     #core           ; flash white
+                ldd     #corehit_dsc
+                std     O_SPR,x
+                ldaa    #6
+                staa    core_flash
+                dec     boss_hp
+                beq     boss_die
+                ldx     #fx_clang
+                ldaa    #2
+                jsr     snd_play
+                sec
+                rts
+
+boss_die:                               ; the core is spent
+                ldaa    #BS_DYING
+                staa    boss_state
+                ldaa    #DIE_TIME
+                staa    boss_t
+                inc     area_done       ; no more escorts ...
+                ldx     #boss
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                ldx     #core
+                std     O_DX,x
+                std     O_DY,x
+                ldx     #aliens         ; ... and those flying explode with it
+-               stx     obj
+                ldd     O_SPR,x
+                beq     +
+                ldd     AN_PTR,x
+                bne     +
+                ldd     #anim_boom
+                jsr     obj_anim_start
+                dec     alive
++               ldx     obj
+                ldab    #OBJ_SIZE
+                abx
+                cpx     #aliens_end
+                bne     -
+                ldx     #fx_bossdie
+                ldaa    #6
+                jsr     snd_play
+                sec
+                rts
+
+boss_dying:                             ; explosions all over the hull
+                dec     boss_t
+                beq     bd_gone
+                ldaa    boss_t
+                anda    #7
+                bne     bd_r
+                ldx     #aliens         ; a burst in a free slot
+-               ldd     O_SPR,x
+                beq     +
+                ldab    #OBJ_SIZE
+                abx
+                cpx     #aliens_end
+                bne     -
+                rts
++               stx     obj
+                jsr     rnd             ; somewhere on the hull
+                andb    #15
+                ldx     #boss
+                addb    O_X,x
+                stab    bm_xy
+                jsr     rnd
+                andb    #7
+                ldx     #boss
+                addb    O_Y,x
+                ldx     obj
+                stab    O_Y,x
+                ldaa    bm_xy
+                staa    O_X,x
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                ldd     #anim_boom
+                jmp     obj_anim_start
+bd_gone:
+                ldx     #core           ; the end: the boss is gone
+                jsr     obj_erase
+                ldx     #core
+                ldd     #0
+                std     O_SPR,x
+                ldx     #boss
+                jsr     obj_erase
+                ldx     #boss
+                ldd     #0
+                std     O_SPR,x
+                jsr     score_5000
+                ldaa    #BS_DEFEATED
+                staa    boss_state
+bd_r:           rts
+
+score_50:                               ; score += 50 (BCD)
+                ldaa    score+2
+                adda    #$50
+                jmp     sc_lo
+score_5000:                             ; score += 5000 (BCD)
+                ldaa    score+1
+                adda    #$50
+                jmp     sc_mid
 
 ; ---------------------------------------------------------------- warp
 warp_begin:
@@ -1075,11 +1386,11 @@ score_1000:                             ; score += 1000 (BCD)
 score_10:                               ; score += 10 (BCD)
                 ldaa    score+2
                 adda    #$10
-                daa
+sc_lo:          daa
                 staa    score+2
                 ldaa    score+1
                 adca    #0
-                daa
+sc_mid:         daa
                 staa    score+1
                 ldaa    score
                 adca    #0
@@ -1464,6 +1775,38 @@ area4:
                 fcb     8, 10, 103, -12
                 fdb     0
 
+; Bosses, per area: core hits, escort wave list (it loops)
+boss_tab:       fcb     8
+                fdb     esc1
+                fcb     12
+                fdb     esc2
+                fcb     16
+                fdb     esc3
+                fcb     20
+                fdb     esc4
+esc1:           fdb     saucer_dsc, path_circle
+                fcb     4, 20, 35, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     4, 20, 21, 12
+                fdb     0
+esc2:           fdb     orbiter_dsc, path_circleR
+                fcb     5, 16, 84, 0
+                fdb     saucer_dsc, path_loopL
+                fcb     5, 16, 30, 0
+                fdb     0
+esc3:           fdb     dart_dsc, path_zigLR
+                fcb     6, 14, 103, -12
+                fdb     orbiter_dsc, path_circle
+                fcb     6, 14, 35, 0
+                fdb     0
+esc4:           fdb     saucer_dsc, path_loopR
+                fcb     6, 12, 89, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     6, 12, 15, 12
+                fdb     orbiter_dsc, path_circleR
+                fcb     6, 12, 84, 0
+                fdb     0
+
 ; Explosion: frames of 4 game frames each, then the slot is freed
 anim_boom:      fdb     boom1_dsc
                 fcb     4
@@ -1495,6 +1838,9 @@ s_boss:         fcc     "BOSS"
 s_cleared:      fdb     TXT_AT(BANNER_ROW,10)
                 fcc     "AREA CLEARED"
                 fcb     0
+s_bossin:       fdb     TXT_AT(BANNER_ROW,11)
+                fcc     "WARNING!"
+                fcb     0
 s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_sub:          fcc     "A TEST OF THE MC-10 ENGINE"
@@ -1511,7 +1857,8 @@ s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
 ; Every artifact sprite, for the colour swap
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
-                fdb     shipw1_dsc, shipw2_dsc, 0
+                fdb     shipw1_dsc, shipw2_dsc, boss1_dsc, core_dsc
+                fdb     corehit_dsc, 0
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -1574,6 +1921,30 @@ fx_warp:                                ; the afterburner: a rising roar
                 fcb     60, SND_NOISE
                 fdb     420, 0
                 fcb     0
+fx_bossin:                              ; the boss arrives: a warning siren
+                fcb     20, SND_TONE
+                fdb     900, -20
+                fcb     20, SND_TONE
+                fdb     900, -20
+                fcb     20, SND_TONE
+                fdb     900, -20
+                fcb     0
+fx_ping:                                ; a shot bounces off the hull (kept
+                fcb     3, SND_TONE     ; below ~1 kHz: high tones cost CPU)
+                fdb     480, 0
+                fcb     0
+fx_clang:                               ; a hit on the core
+                fcb     3, SND_NOISE
+                fdb     250, 0
+                fcb     8, SND_TONE
+                fdb     520, 40
+                fcb     0
+fx_bossdie:                             ; the boss goes up: a long roar
+                fcb     10, SND_NOISE
+                fdb     250, 0
+                fcb     110, SND_NOISE
+                fdb     380, 4
+                fcb     0
 fx_shipboom:    fcb     6, SND_NOISE    ; the ship: a long, deep explosion
                 fdb     300, 0
                 fcb     50, SND_NOISE
@@ -1601,6 +1972,8 @@ star_end:
 
 ; Objects, in priority order: aliens, bombs, shots, ship
 objs:
+boss:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+core:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 aliens:
                 rept    NALIEN
                 fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0

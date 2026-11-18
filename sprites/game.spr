@@ -84,3 +84,37 @@ W..OO..W
 ...O....
 ...O....
 end
+
+# Boss 1: the mothership, 24x12.  Moves at most half a pixel a frame each
+# way, so a 1-pixel halo.  The black opening in the middle (columns 10-13,
+# rows 4-7) is where the core sits; the channel below it lets shots in.
+sprite boss1 artifact halo 1 1
+.......WWWWWWWWWW.......
+....WWWOOOOOOOOOOWWW....
+..WWOOOBBOOOOOOBBOOOWW..
+.WOOOOBBBBOOOOBBBBOOOOW.
+WOOOOOOBBO....OBBOOOOOOW
+WOOOOOOOOO....OOOOOOOOOW
+WWOOOOOOOO....OOOOOOOOWW
+.WWWOOOOOO....OOOOOOWWW.
+...WWWWOOO....OOOWWWW...
+....BB.WWW....WWW.BB....
+....BB............BB....
+....OO............OO....
+end
+
+# The boss's core (its weak spot), 4x4, and its flash when hit.  Drawn
+# over the boss's opening; moves with the boss.
+sprite core artifact halo 1 1
+.WW.
+WOBW
+WBOW
+.WW.
+end
+
+sprite corehit artifact halo 1 1
+WWWW
+WWWW
+WWWW
+WWWW
+end

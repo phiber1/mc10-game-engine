@@ -459,3 +459,21 @@ blue.  `bench/waves.asm` converted:
   LOW_CHECK / CODE_CHECK fail the assembly on overflow.
 * `make run-NAME` uses `build/sd` as the SD card; `make check` loads the
   game with LOADM too.  Both segments verified byte-exact by checksum.
+
+### Bosses (first: the mothership)
+
+* After an area's waves: WARNING!, a siren, and the boss descends from
+  under the status bar, then sways at half a pixel a frame (halo 1 1:
+  ~570 cycles to draw) while its two cannons fire (sharing the bomb
+  rhythm via `bomb_at`) and escort waves loop around it.
+* Weak spot: a separate core sprite in the hull's opening, moved with it;
+  only core hits count (8/12/16/20 by area).  The art has a channel under
+  the core and shots in the core's column pass the hull's hit box (the
+  core sits inside the hull's rectangle, so without that every shot
+  pinged off the hull).  Core flashes white, clang; hull hits ping.
+* Defeat: the escorts explode, bursts across the hull for 2 s, +5000,
+  then the salute and warp.
+* Cost: boss fight median ~11.1K cycles/frame, <1% over budget, after
+  lowering the ping (a 2 kHz tone cost ~30% CPU while playing) and a
+  quick reject before the boss hit tests.  Main segment ends ~$9AE0.
+* make check covers the boss: arrival after the waves, kill, warp.
