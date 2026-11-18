@@ -125,6 +125,21 @@ check "both envoys destroyed (left: $e1)" "[ $e1 -eq 0 ]"
 bs3=$(echo "$out" | memval $BS 1)
 check "then the open core is destroyed (boss state $bs3: dying, defeated or won)" "[ $bs3 -ge 3 ] || [ $bs3 -eq 0 ]"
 
+# 4c. No safe spot ("pizza break"): a ship that never moves is lost
+#     within 30 seconds of area 1, at the start position and elsewhere.
+#     (The bug: area 1's first wave dropped bombs at fixed points of its
+#     path, and an unmoving ship between them lasted for minutes.)
+DEADV=$(sym dead)
+s=""; for i in $(seq 1 120); do s="$s frames:15 mem:$DEADV,1"; done
+slow=""
+for x in start 0 20 58 100 111; do
+    p=""; [ $x != start ] && p="frames:60 poke:$SHIP,$(printf %02X $x) frames:60 poke:$SHIP,$(printf %02X $x)"
+    t=$(run frames:30 'type: ' frames:2 $p $s | grep '^mem' | awk '{n++; if(strtonum("0x"$3) && !t) t=n} END{print t? int(t/4) : -1}')
+    [ $t -lt 0 ] && slow="$slow x=$x"
+    times="${times:-}$x:${t}s "
+done
+check "an unmoving ship is lost within 30 s ($times)" "[ -z \"$slow\" ]"
+
 # 5. The frame budget holds in realistic play: two minutes of sweeping
 #    side to side with fire held, through the area's full waves (the
 #    old test, firing straight up from the centre, missed a regression).

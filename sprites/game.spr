@@ -31,8 +31,9 @@ W
 W
 end
 
-# Alien bomb: 3 rows a frame, straight down
-sprite bomb artifact halo 0 3
+# Alien bomb: 3 rows a frame down, up to 1 pixel across (thrown along
+# a dive: it keeps the alien's sideways speed)
+sprite bomb artifact halo 1 3
 O
 O
 W

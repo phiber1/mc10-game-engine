@@ -35,6 +35,8 @@ MAX_ALIVE       equ     8               ; live aliens on screen at most
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
+AIM_W           equ     2               ; aimed drops: within 2 pixels of the nose
+BOMB_WARN       equ     36              ; bombs start 36 rows above the ship (12 frames)
 
 START_SHIPS     equ     3
 DEAD_TIME       equ     110             ; frames from losing a ship to what's next
@@ -122,6 +124,7 @@ banner_fl       rmb     1               ; the banner flashes
 mp_t            rmb     1
 mp_a            rmb     2
 bm_xy           rmb     2               ; bomb_at: the bomb's position
+bm_dx           rmb     2               ; and its sideways speed
 ba_xy           rmb     2               ; boss_attach scratch
 ba_dx           rmb     2
 ba_dy           rmb     2
@@ -399,8 +402,9 @@ aliens_logic_f2:
 al_loop:
                 stx     obj
                 ldd     O_SPR,x
-                beq     al_next
-                ldd     AN_PTR,x        ; exploding?
+                bne     al_used
+                jmp     al_next
+al_used:        ldd     AN_PTR,x        ; exploding?
                 beq     al_live
                 ldd     O_X,x           ; drift, but not off the sides
                 addd    O_DX,x
@@ -428,8 +432,16 @@ al_clamp:       stab    O_X,x
 al_inside:      jsr     fl_step
                 ldaa    fl_event        ; event 1: drop a bomb
                 cmpa    #1
-                bne     al_live_f1
-                jsr     drop_bomb
+                beq     al_drop
+                ldx     obj             ; or right over the ship (no spot
+                ldaa    O_X,x           ; is safe for a ship that never
+                suba    ship+O_X        ; moves); the rhythm still decides
+                adda    #saucer_PADX+3-ship_PADX-3+AIM_W
+                cmpa    #2*AIM_W+1
+                bcc     al_live_f1
+                jsr     drop_aim
+                bra     al_live_f1
+al_drop:        jsr     drop_bomb
 al_live_f1:     ldx     obj
                 ldaa    F_FLAGS,x       ; a wrapping alien: through the side
                 bita    #FF_WRAP        ; to the other one
@@ -470,27 +482,41 @@ al_next:
                 jmp     al_loop
 al_done:        rts
 
-; drop a bomb from the alien at obj
+; drop a bomb from the alien at obj: it keeps the alien's sideways
+; speed, so bombs thrown along a dive land along its line (an unmoving
+; ship is never safe between the drop points)
 drop_bomb:
                 ldx     obj
-                ldaa    O_X,x
+                ldd     O_DX,x          ; half the alien's sideways speed
+                asra
+                rorb
+                std     bm_dx
+                bra     drop_pos
+drop_aim:                               ; straight down, onto the ship
+                ldx     #0
+                stx     bm_dx
+                ldx     obj
+drop_pos:       ldaa    O_X,x
                 adda    #saucer_PADX+3-bomb_PADX
                 ldab    O_Y,x
                 addb    #saucer_H-saucer_PADY-bomb_PADY
-                ; fall through
+                bra     bomb_dx
 
-; a bomb at A = x, B = y (its box), if the rhythm allows and it's above
-; the ship's area
+; a bomb at A = x, B = y (its box), falling straight, if the rhythm
+; allows and it's far enough above the ship
 bomb_at:
-                std     bm_xy
+                ldx     #0
+                stx     bm_dx
+bomb_dx:        std     bm_xy
                 ldaa    bomb_cd         ; too soon after the last bomb?
                 bne     db_done
                 ldaa    spray_t         ; in a spray window?
                 cmpa    #SPRAY_ON
                 bcc     db_done
-                ldaa    bm_xy+1         ; above the ship's area?
-                cmpa    #SHIP_YMIN-8
-                bcc     db_done
+                ldaa    ship+O_Y        ; far enough above the ship to
+                suba    #BOMB_WARN      ; dodge?
+                cmpa    bm_xy+1
+                bls     db_done
                 ldx     #bombs
 bomb_at_b1:     ldd     O_SPR,x
                 beq     db_done_f1
@@ -504,7 +530,7 @@ db_done_f1:     ldd     bm_xy
                 stab    O_Y,x
                 clr     O_XF,x
                 clr     O_YF,x
-                ldd     #0
+                ldd     bm_dx
                 std     O_DX,x
                 ldd     #BOMB_SPEED
                 std     O_DY,x
@@ -519,9 +545,10 @@ db_done_f1:     ldd     bm_xy
 ; a bomb at A = x, B = y, whatever the rhythm (envoys), if a slot is free
 bomb_force:
                 std     bm_xy
-                ldaa    bm_xy+1
-                cmpa    #SHIP_YMIN-8
-                bcc     bf_done
+                ldaa    ship+O_Y        ; far enough above the ship to
+                suba    #BOMB_WARN      ; dodge?
+                cmpa    bm_xy+1
+                bls     bf_done
                 ldx     #bombs
 bf_find:        ldd     O_SPR,x
                 beq     bf_slot
@@ -548,10 +575,15 @@ bombs_logic:
 bombs_logic_b1: stx     obj2
                 ldd     O_SPR,x
                 beq     bombs_logic_f1
+                ldd     O_X,x           ; off a side (thrown bombs)?
+                addd    O_DX,x
+                cmpa    #128-bomb_W
+                bcc     bombs_logic_off
                 ldd     O_Y,x           ; off the bottom?
                 addd    O_DY,x
                 cmpa    #192-bomb_H
                 bcs     bombs_logic_f1
+bombs_logic_off:
                 jsr     obj_erase
                 ldx     obj2
                 ldd     #0
@@ -1931,7 +1963,13 @@ path_loopL:                             ; loop left, jink, dive down-right;
                 fcb     P_HEAD, 64
 pl_rep:         fcb     P_FLY, 40, 0
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 64, 4
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
                 fcb     P_EVENT, 1
                 fcb     P_TURNBY, -48
                 fcb     P_FLY, 12, 0
@@ -1942,7 +1980,13 @@ pl_rep:         fcb     P_FLY, 40, 0
                 fcb     P_HEAD, 64
                 fcb     P_FLY, 40, 0
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 64, -4
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
                 fcb     P_EVENT, 1
                 fcb     P_TURNBY, 48
                 fcb     P_FLY, 12, 0
@@ -1958,7 +2002,13 @@ path_loopR:                             ; the mirror image
                 fcb     P_HEAD, 64
 pr_rep:         fcb     P_FLY, 40, 0
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 64, -4
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, -4
                 fcb     P_EVENT, 1
                 fcb     P_TURNBY, 48
                 fcb     P_FLY, 12, 0
@@ -1969,7 +2019,13 @@ pr_rep:         fcb     P_FLY, 40, 0
                 fcb     P_HEAD, 64
                 fcb     P_FLY, 40, 0
                 fcb     P_EVENT, 1
-                fcb     P_FLY, 64, 4
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 16, 4
                 fcb     P_EVENT, 1
                 fcb     P_TURNBY, -48
                 fcb     P_FLY, 12, 0

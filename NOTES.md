@@ -570,14 +570,23 @@ blue.  `bench/waves.asm` converted:
 * Owner request: **physically different bosses** (story: the area 1
   mothership is dead by area 2).  Memory now: main ends $A3A6 (~2.6K
   free), low ~400 bytes free.  A 24x12 halo 1 1 hull costs ~2.8K.
-* **TOP FIX FIRST (owner, "pizza break"):** start a game and don't move:
-  area 1's first wave (saucers, path_loopL, diagonal dives) never hits
-  the ship at the start position and its bombs take minutes to land by
-  chance.  Spread bomb drops along the diagonal dives (more P_EVENT drop
-  points down the dive legs, and/or drop where the alien is above the
-  ship: aim at fl_tx), so standing still at any spot is punished quickly.
-  Add a make check: an unmoving ship must be lost within ~20-30 s in
-  area 1 (sample lives).
+* **Done: the "pizza break" (owner's report).**  An unmoving ship at
+  the start lasted 90 s+ (minutes) in area 1: the first wave (saucers,
+  path_loopL) dropped bombs only at fixed P_EVENT points, so its bombs
+  fell in four narrow columns (x 30-34, 48-51, 73-76, 91-93) and the
+  start spot (x 59) lay between them; the dives cross the middle below
+  the drop limit.  Fixed with three changes: (1) path bombs are thrown:
+  they keep half the alien's sideways speed (bomb sprite now halo 1 3;
+  bombs leaving a side are freed), so they land spread along the dive
+  and loop lines; (2) more drop points around the loops (every quarter
+  turn); (3) aimed drops: an alien whose bomb would leave within 2 px of
+  the ship's nose (AIM_W) drops straight down; the spray rhythm and
+  BOMB_GAP still gate every drop.  The drop limit is now relative to the
+  ship (BOMB_WARN: 36 rows above it, 12 frames to dodge) instead of a
+  fixed y 112.  An unmoving ship is now lost in 3-21 s anywhere
+  (slowest: the start and the centre, 16-21 s); a sweeping player loses
+  ships at the old rate and the frame budget is unchanged.  make check
+  4c guards it (six positions, 30 s each); it fails on the old build.
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap
