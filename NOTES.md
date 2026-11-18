@@ -514,3 +514,15 @@ blue.  `bench/waves.asm` converted:
   flashing): ~6-9% of frames over in envoy fights, a brief slowdown like
   arcade boss fights.  Normal play: 0%.
 * make check: the shut core takes no hits, both envoys die, then the core.
+* **Regression (owner report): slowdowns in normal waves with rapid fire.**
+  Found by comparing against the last good build (8f4866e) in a
+  two-minute sweep-and-fire run: heavy frames had grown (p95 12.9K ->
+  14.3K, 1% -> 3.5% over), mostly from the 8-alien waves (up to 10 on
+  screen), which multiplied collision work and status-bar repairs.  Fixes:
+  each shot meets the aliens only every other frame (alternating), and
+  the ship meets bombs and aliens on alternate frames (the overlap
+  windows are deeper than two frames' movement; shots against the boss
+  stay every frame, the core's window is shallow); the status bar repair
+  copies with LDD/PSHB/PSHA and clears its blank rows.  Now: median 7.2K,
+  p95 11.1K, 0.6% over, better than the old build.  The budget check now
+  uses that sweep-and-fire scenario (limit 2%).

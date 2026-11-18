@@ -90,6 +90,8 @@ bomb_cd         rmb     1               ; frames until another bomb may drop
 spray_t         rmb     1               ; bomb rhythm: spray, then quiet
 alive           rmb     1               ; aliens on screen
 cy              rmb     1               ; collide: the shot's row + 24
+col_par         rmb     1               ; collide: frame parity
+cs_par          rmb     1               ; collide: shot parity
 dead            rmb     1               ; nonzero while the ship is lost
 invuln          rmb     1               ; frames of invulnerability left
 mode            rmb     1               ; MODE_PLAY, MODE_SALUTE, MODE_WARP ...
@@ -767,8 +769,16 @@ sh_gone_f1:     ldx     obj2
                 rts
 
 ; ---------------------------------------------------------------- hits
+; Collisions.  Shots against the boss every frame (the core's window is
+; shallow), but each shot against the aliens only every other frame
+; (alternating shots), and the ship against aliens / bombs on alternate
+; frames: their overlap windows are deeper than two frames' movement, so
+; nothing slips through, and it halves the work.
 collide:
-                ldx     #shots          ; shots against aliens
+                com     col_par         ; this frame's parity
+                ldaa    col_par
+                staa    cs_par
+                ldx     #shots          ; shots against the boss and aliens
 cs_loop:
                 stx     ht_a
                 ldd     O_SPR,x
@@ -781,7 +791,9 @@ cs_loop:
                 ldd     #0
                 std     O_SPR,x
                 jmp     cs_next
-cs_loop_f1:     ldx     ht_a
+cs_loop_f1:     com     cs_par          ; every other shot (alternating) meets
+                beq     cs_next         ; the aliens this frame
+                ldx     ht_a
                 ldaa    O_Y,x           ; this shot's row, for the quick reject
                 adda    #24
                 staa    cy
@@ -827,8 +839,11 @@ cs_next:
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #shots_end
-                bne     cs_loop
-                tst     dead            ; bombs against the ship
+                beq     shots_done
+                jmp     cs_loop
+shots_done:     tst     col_par         ; bombs against the ship on one frame,
+                beq     cb_skip         ; aliens against it on the other
+                tst     dead
                 bne     cb_skip
                 ldx     #ship
                 stx     ht_b
@@ -856,6 +871,7 @@ cb_next:
                 abx
                 cpx     #bombs_end
                 bne     cb_loop
+                rts
 cb_skip:
                 tst     dead            ; aliens against the ship
                 bne     cc_done
@@ -1694,29 +1710,33 @@ status_update_b1:
                 inc     sm_dirty        ; and show it
 su_done:        rts
 
-; Copy status_buf over rows 0-6 if sprites touched them (or it changed).
-; Each row is a stack blast: S points at the row's end and PSHA writes
-; backwards (7 cycles a byte); interrupts are off only for one row at a
-; time (~240 cycles), so sound barely notices.
+; Repair the status bar (rows 0-6) if sprites touched it (or it changed):
+; rows 1-5 (the text) are copied from status_buf, rows 0 and 6 (always
+; blank) are cleared.  Each row is a stack blast with interrupts off for
+; that row only: S points at the row's end, and LDD n,X / PSHB / PSHA
+; writes two bytes backwards (5 cycles a byte; ~3 for the blank rows).
 status_repair:
                 tst     sm_dirty
                 bne     sr_go
                 rts
 sr_go:          clr     sm_dirty
                 sts     sr_sp
-                ldx     #SCREEN+ROW_BYTES-1
+                ldd     #SCREEN+ROW_BYTES-1     ; row 0: blank
+                jsr     sr_blank
+                ldx     #SCREEN+2*ROW_BYTES-1   ; rows 1-5: the text
                 stx     sr_dst
-                ldx     #status_buf
-                ldaa    #BAND
+                ldx     #status_buf+ROW_BYTES
+                ldaa    #5
                 staa    sr_n
 sr_row:
                 sei
                 lds     sr_dst
-k               set     ROW_BYTES-1
-                rept    ROW_BYTES
-                ldaa    k,x
+k               set     ROW_BYTES-2
+                rept    ROW_BYTES/2
+                ldd     k,x
+                pshb
                 psha
-k               set     k-1
+k               set     k-2
                 endm
                 lds     sr_sp
                 cli
@@ -1728,8 +1748,22 @@ k               set     k-1
                 std     sr_dst
                 pulx
                 dec     sr_n
-                beq     sr_done
+                beq     sr_last
                 jmp     sr_row
+sr_last:        ldd     #SCREEN+7*ROW_BYTES-1   ; row 6: blank
+                ; fall through
+sr_blank:                               ; D = a row's last byte: clear the row
+                std     sr_dst
+                sei
+                lds     sr_dst
+                clra
+                clrb
+                rept    ROW_BYTES/2
+                pshb
+                psha
+                endm
+                lds     sr_sp
+                cli
 sr_done:        rts
 
 ; ---------------------------------------------------------------- banner

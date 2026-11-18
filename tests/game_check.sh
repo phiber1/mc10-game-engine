@@ -82,10 +82,13 @@ check "both envoys destroyed (left: $e1)" "[ $e1 -eq 0 ]"
 bs3=$(echo "$out" | memval $BS 1)
 check "then the open core is destroyed (boss state $bs3: dying, defeated or won)" "[ $bs3 -ge 3 ] || [ $bs3 -eq 0 ]"
 
-# 5. The frame budget holds with fire held for ~30 s.
-sp=$(printf '%*s' 400 '')
-over=$(run dbgport:BE00 frames:30 'type: ' frames:200 "type:$sp" frames:1800 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700{o++} END{printf "%d", 100*o/NR}')
-check "frames over budget with fire held: ${over}% (limit 3%)" "[ $over -le 3 ]"
+# 5. The frame budget holds in realistic play: two minutes of sweeping
+#    side to side with fire held, through the area's full waves (the
+#    old test, firing straight up from the centre, missed a regression).
+mv=""; for i in $(seq 1 60); do mv="$mv A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
+over=$(run dbgport:BE00 frames:30 'type: ' frames:250 "type:$mv" frames:7200 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
+       awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
+check "frames over budget, sweeping with fire held: ${over}% (limit 2%)" "awk 'BEGIN{exit !($over <= 2.0)}'"
 
 echo "----"
 echo "$pass passed, $fail failed"
