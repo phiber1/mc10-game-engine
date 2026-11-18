@@ -132,15 +132,15 @@ start:
                 staa    VDG
                 staa    vdg_shadow
                 ldx     #PROG_DP        ; clear all of this program's variables
--               clr     0,x
+start_b1:       clr     0,x
                 inx
                 cpx     #ht_al
-                bne     -
+                bne     start_b1
                 ldx     #BSS
--               clr     0,x
+start_b2:       clr     0,x
                 inx
                 cpx     #BSS_USED
-                bne     -
+                bne     start_b2
                 ldd     FRC
                 orab    #1
                 std     seed
@@ -164,13 +164,13 @@ t_loop:
                 jsr     snd_frame
                 jsr     kbd_read
                 tst     col_ok          ; asked only before the first game
-                bne     +
+                bne     t_loop_f1
                 jsr     key_c           ; C: swap the colours
                 cmpa    keyprev
-                beq     +
+                beq     t_loop_f1
                 staa    keyprev
                 tsta
-                beq     +
+                beq     t_loop_f1
                 ldx     #all_sprites
                 jsr     col_swap
                 ldaa    col_o
@@ -178,7 +178,7 @@ t_loop:
                 staa    col_b
                 stab    col_o
                 jsr     title_draw
-+               ldaa    joy
+t_loop_f1:      ldaa    joy
                 bita    #J_FIRE
                 beq     t_loop
 
@@ -188,10 +188,10 @@ game_start:
                 jsr     cls
                 jsr     stars_init
                 ldx     #objs           ; empty every object slot
--               clr     0,x
+game_start_b1:  clr     0,x
                 inx
                 cpx     #ship
-                bne     -
+                bne     game_start_b1
                 ldd     #0
                 std     score
                 staa    score+2
@@ -237,11 +237,11 @@ loop:
                 jsr     collide
                 jsr     victory_check
                 ldab    warpf           ; stars first: sprites cover them
--               pshb                    ; (several updates a frame at warp)
+loop_b1:        pshb                    ; (several updates a frame at warp)
                 jsr     stars_update
                 pulb
                 decb
-                bne     -
+                bne     loop_b1
                 jsr     spr_update_all
                 jsr     status_update   ; render the bar if it changed ...
                 jsr     status_repair   ; ... and put it in front of sprites
@@ -287,15 +287,15 @@ wave_logic:
                 ldaa    wv_left
                 beq     wl_next         ; all launched: wait for the next wave
                 ldx     #aliens         ; launch one into a free slot
--               ldd     O_SPR,x
-                beq     +
+wave_logic_b1:  ldd     O_SPR,x
+                beq     wave_logic_f1
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #aliens_end
-                bne     -
+                bne     wave_logic_b1
                 inc     wv_timer        ; none free: try next frame
                 rts
-+               stx     obj
+wave_logic_f1:  stx     obj
                 ldx     wv_ptr
                 ldab    W_GAP,x
                 stab    wv_timer
@@ -327,23 +327,22 @@ wl_done:        rts
 wl_next:                                ; next wave when at most 2 remain
                 ldaa    alive
                 cmpa    #2
-                bls     +
+                bls     wl_next_f1
                 inc     wv_timer
                 rts
-+               ldx     wv_ptr
+wl_next_f1:     ldx     wv_ptr
                 ldab    #W_SIZE
                 abx
                 inc     wv_index
-                ldd     0,x
-                bne     +
-                tst     boss_state      ; a boss fight: the escorts go round
-                beq     +               ; again
+                ldd     0,x             ; another wave in the list?
+                bne     wl_launch
+                tst     boss_state      ; the end of the list.  In a boss
+                beq     wl_area_end     ; fight the escorts go round again
                 ldx     wv_start
-                bra     ++
-+               inc     area_done       ; the end of the area's waves
+                bra     wl_launch
+wl_area_end:    inc     area_done       ; otherwise the area's waves are done
                 rts
-+
-+               stx     wv_ptr
+wl_launch:      stx     wv_ptr
                 ldaa    W_X,x
                 staa    wv_x
                 ldaa    W_COUNT,x
@@ -355,14 +354,16 @@ wl_next:                                ; next wave when at most 2 remain
 ; ---------------------------------------------------------------- aliens
 aliens_logic:
                 ldaa    bomb_cd         ; bomb rhythm
-                beq     +
+                beq     aliens_logic_f1
                 dec     bomb_cd
-+               inc     spray_t
+aliens_logic_f1:
+                inc     spray_t
                 ldaa    spray_t
                 cmpa    #SPRAY_ON+SPRAY_OFF
-                bcs     +
+                bcs     aliens_logic_f2
                 clr     spray_t
-+               ldaa    ship+O_X        ; the aim target: the ship
+aliens_logic_f2:
+                ldaa    ship+O_X        ; the aim target: the ship
                 staa    fl_tx
                 ldaa    ship+O_Y
                 staa    fl_ty
@@ -376,28 +377,28 @@ al_loop:
                 ldd     O_X,x           ; drift, but not off the sides
                 addd    O_DX,x
                 cmpa    #128-AL_W
-                bcs     +
+                bcs     al_loop_f1
                 ldd     #0
                 std     O_DX,x
-+               jsr     obj_anim_step   ; next frame; frees the slot at the end
+al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
                 bra     al_next
 al_live:
                 jsr     fl_step
                 ldaa    fl_event        ; event 1: drop a bomb
                 cmpa    #1
-                bne     +
+                bne     al_live_f1
                 jsr     drop_bomb
-+               ldx     obj             ; safety: mirror off the sides
+al_live_f1:     ldx     obj             ; safety: mirror off the sides
                 ldd     O_X,x
                 addd    O_DX,x
                 cmpa    #128-AL_W
-                bcs     +
+                bcs     al_live_f2
                 ldaa    #128
                 suba    F_ANG,x
                 staa    F_ANG,x
                 jsr     fl_velocity
                 ldx     obj
-+               ldd     O_Y,x           ; through the bottom: back in at the top
+al_live_f2:     ldd     O_Y,x           ; through the bottom: back in at the top
                 addd    O_DY,x
                 cmpa    #192
                 bcs     al_next
@@ -435,14 +436,14 @@ bomb_at:
                 cmpa    #SHIP_YMIN-8
                 bcc     db_done
                 ldx     #bombs
--               ldd     O_SPR,x
-                beq     +
+bomb_at_b1:     ldd     O_SPR,x
+                beq     db_done_f1
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #bombs_end
-                bne     -
+                bne     bomb_at_b1
 db_done:        rts
-+               ldd     bm_xy
+db_done_f1:     ldd     bm_xy
                 staa    O_X,x
                 stab    O_Y,x
                 clr     O_XF,x
@@ -461,22 +462,22 @@ db_done:        rts
 
 bombs_logic:
                 ldx     #bombs
--               stx     obj2
+bombs_logic_b1: stx     obj2
                 ldd     O_SPR,x
-                beq     +
+                beq     bombs_logic_f1
                 ldd     O_Y,x           ; off the bottom?
                 addd    O_DY,x
                 cmpa    #192-bomb_H
-                bcs     +
+                bcs     bombs_logic_f1
                 jsr     obj_erase
                 ldx     obj2
                 ldd     #0
                 std     O_SPR,x
-+               ldx     obj2
+bombs_logic_f1: ldx     obj2
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #bombs_end
-                bne     -
+                bne     bombs_logic_b1
                 rts
 
 ; ---------------------------------------------------------------- ship
@@ -503,9 +504,9 @@ sl_play:        tst     dead
                 beq     sl_alive
                 ldx     #ship           ; lost: let the explosion play out
                 ldd     AN_PTR,x
-                beq     +
+                beq     sl_play_f1
                 jsr     obj_anim_step
-+               dec     dead_t
+sl_play_f1:     dec     dead_t
                 bne     sl_ret
                 tst     lives
                 beq     sl_over
@@ -530,13 +531,13 @@ sl_alive:
                 dec     invuln
                 ldx     #ship
                 ldaa    invuln
-                beq     +               ; the end: visible
+                beq     sl_alive_f1               ; the end: visible
                 bita    #4
-                beq     ++              ; every 4 frames: hide ...
-+               ldd     #ship_dsc       ; ... or show
+                beq     sl_alive_f2              ; every 4 frames: hide ...
+sl_alive_f1:    ldd     #ship_dsc       ; ... or show
                 std     O_SPR,x
                 bra     sl_move
-+               ldd     O_SPR,x
+sl_alive_f2:    ldd     O_SPR,x
                 beq     sl_move
                 jsr     obj_erase
                 ldx     #ship
@@ -549,31 +550,31 @@ sl_move:
                 std     O_DY,x
                 ldaa    joy
                 bita    #J_LEFT
-                beq     +
+                beq     sl_move_f1
                 ldd     #-SHIP_SPEEDX
                 std     O_DX,x
                 ldaa    joy
-+               bita    #J_RIGHT
-                beq     +
+sl_move_f1:     bita    #J_RIGHT
+                beq     sl_move_f2
                 ldd     #SHIP_SPEEDX
                 std     O_DX,x
                 ldaa    joy
-+               bita    #J_UP
-                beq     +
+sl_move_f2:     bita    #J_UP
+                beq     sl_move_f3
                 ldd     #-SHIP_SPEED
                 std     O_DY,x
                 ldaa    joy
-+               bita    #J_DOWN
-                beq     +
+sl_move_f3:     bita    #J_DOWN
+                beq     sl_move_f4
                 ldd     #SHIP_SPEED
                 std     O_DY,x
-+               ldd     O_X,x
+sl_move_f4:     ldd     O_X,x
                 addd    O_DX,x
                 cmpa    #SHIP_XMAX
-                bcs     +
+                bcs     sl_move_f5
                 ldd     #0
                 std     O_DX,x
-+               ldd     O_Y,x
+sl_move_f5:     ldd     O_Y,x
                 addd    O_DY,x
                 cmpa    #SHIP_YMIN
                 bcs     sl_stop
@@ -582,14 +583,14 @@ sl_move:
 sl_stop:        ldd     #0
                 std     O_DY,x
 sl_done:        ldd     O_SPR,x         ; hidden (flashing): the sprite manager
-                bne     +               ; won't move it, so move it here
+                bne     sl_done_f1               ; won't move it, so move it here
                 ldd     O_X,x
                 addd    O_DX,x
                 std     O_X,x
                 ldd     O_Y,x
                 addd    O_DY,x
                 std     O_Y,x
-+               rts
+sl_done_f1:     rts
 
 ship_place:                             ; a fresh ship at the bottom centre
                 ldx     #ship
@@ -610,11 +611,11 @@ ship_place:                             ; a fresh ship at the bottom centre
 ; the ship is hit (unless already lost or flashing)
 ship_hit:
                 tst     mode            ; untouchable during the salute and warp
-                bne     +
+                bne     ship_hit_f1
                 tst     dead
-                bne     +
+                bne     ship_hit_f1
                 tst     invuln
-                bne     +
+                bne     ship_hit_f1
                 inc     dead
                 ldaa    #DEAD_TIME
                 staa    dead_t
@@ -630,7 +631,7 @@ ship_hit:
                 ldx     #fx_shipboom
                 ldaa    #3
                 jmp     snd_play
-+               rts
+ship_hit_f1:    rts
 
 ; ---------------------------------------------------------------- shots
 fire_logic:
@@ -639,21 +640,21 @@ fire_logic:
                 tst     mode
                 bne     fl_done
                 ldaa    cooldown
-                beq     +
+                beq     fire_logic_f1
                 dec     cooldown
                 rts
-+               ldaa    joy
+fire_logic_f1:  ldaa    joy
                 bita    #J_FIRE
                 beq     fl_done
                 ldx     #shots
--               ldd     O_SPR,x
-                beq     +
+fire_logic_b1:  ldd     O_SPR,x
+                beq     fire_logic_f2
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #shots_end
-                bne     -
+                bne     fire_logic_b1
                 rts
-+               ldaa    ship+O_X        ; the nose: column 3 of the ship
+fire_logic_f2:  ldaa    ship+O_X        ; the nose: column 3 of the ship
                 adda    #ship_PADX+3-shot_PADX
                 staa    O_X,x
                 ldaa    ship+O_Y
@@ -676,25 +677,25 @@ fl_done:        rts
 
 shots_logic:
                 ldx     #shots
--               stx     obj2
+shots_logic_b1: stx     obj2
                 ldd     O_SPR,x
-                beq     +
+                beq     sh_gone_f1
                 ldd     O_Y,x           ; under the status bar (or past the
                 addd    O_DY,x          ; top): gone
                 cmpa    #BAND
                 bcs     sh_gone
                 cmpa    #192
-                bcs     +
+                bcs     sh_gone_f1
 sh_gone:
                 jsr     obj_erase
                 ldx     obj2
                 ldd     #0
                 std     O_SPR,x
-+               ldx     obj2
+sh_gone_f1:     ldx     obj2
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #shots_end
-                bne     -
+                bne     shots_logic_b1
                 rts
 
 ; ---------------------------------------------------------------- hits
@@ -705,14 +706,14 @@ cs_loop:
                 ldd     O_SPR,x
                 beq     cs_next
                 jsr     boss_shot       ; the boss first
-                bcc     +
+                bcc     cs_loop_f1
                 ldx     ht_a            ; it hit the boss: the shot is spent
                 jsr     obj_erase
                 ldx     ht_a
                 ldd     #0
                 std     O_SPR,x
                 jmp     cs_next
-+               ldx     ht_a
+cs_loop_f1:     ldx     ht_a
                 ldaa    O_Y,x           ; this shot's row, for the quick reject
                 adda    #24
                 staa    cy
@@ -926,9 +927,9 @@ boss_logic:
                 cmpa    #BS_DEFEATED
                 beq     bl_r0
                 cmpa    #BS_DYING
-                bne     +
+                bne     boss_logic_f1
                 jmp     boss_dying
-+               ldx     #boss
+boss_logic_f1:  ldx     #boss
                 cmpa    #BS_ENTER
                 bne     bl_fight
                 ldaa    O_Y,x           ; descending: arrived?
@@ -947,13 +948,13 @@ bl_fight:
                 ldd     O_X,x           ; sway between the sides
                 addd    O_DX,x
                 cmpa    #BOSS_XMIN
-                bcs     +
+                bcs     bl_fight_f1
                 cmpa    #BOSS_XMAX
-                bcs     ++
-+               ldd     #0
+                bcs     bl_fight_f2
+bl_fight_f1:    ldd     #0
                 subd    O_DX,x
                 std     O_DX,x
-+               dec     boss_t          ; the cannons, in turn
+bl_fight_f2:    dec     boss_t          ; the cannons, in turn
                 bne     bl_core
                 ldaa    #BOSS_FIRE
                 staa    boss_t
@@ -961,9 +962,9 @@ bl_fight:
                 ldaa    O_X,x
                 adda    #boss1_PADX+4-bomb_PADX
                 tst     boss_side
-                beq     +
+                beq     bl_fight_f3
                 adda    #14
-+               ldab    O_Y,x
+bl_fight_f3:    ldab    O_Y,x
                 addb    #boss1_PADY+12-bomb_PADY
                 jsr     bomb_at
 bl_core:                                ; the core rides in the opening
@@ -1055,19 +1056,19 @@ boss_die:                               ; the core is spent
                 std     O_DX,x
                 std     O_DY,x
                 ldx     #aliens         ; ... and those flying explode with it
--               stx     obj
+boss_die_b1:    stx     obj
                 ldd     O_SPR,x
-                beq     +
+                beq     boss_die_f1
                 ldd     AN_PTR,x
-                bne     +
+                bne     boss_die_f1
                 ldd     #anim_boom
                 jsr     obj_anim_start
                 dec     alive
-+               ldx     obj
+boss_die_f1:    ldx     obj
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #aliens_end
-                bne     -
+                bne     boss_die_b1
                 ldx     #fx_bossdie
                 ldaa    #6
                 jsr     snd_play
@@ -1081,14 +1082,14 @@ boss_dying:                             ; explosions all over the hull
                 anda    #7
                 bne     bd_r
                 ldx     #aliens         ; a burst in a free slot
--               ldd     O_SPR,x
-                beq     +
+boss_dying_b1:  ldd     O_SPR,x
+                beq     boss_dying_f1
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #aliens_end
-                bne     -
+                bne     boss_dying_b1
                 rts
-+               stx     obj
+boss_dying_f1:  stx     obj
                 jsr     rnd             ; somewhere on the hull
                 andb    #15
                 ldx     #boss
@@ -1152,17 +1153,17 @@ warp_logic:                             ; blast off: up, behind the status bar
                 ldd     O_DY,x          ; accelerate to 4 rows a frame
                 subd    #$0018
                 cmpa    #$FC
-                bge     +
+                bge     warp_logic_f1
                 ldd     #$FC00
-+               std     O_DY,x
+warp_logic_f1:  std     O_DY,x
                 ldaa    frame_count     ; the stars speed up
                 anda    #7
-                bne     +
+                bne     warp_logic_f2
                 ldaa    warpf
                 cmpa    #6
-                bcc     +
+                bcc     warp_logic_f2
                 inc     warpf
-+               ldaa    O_Y,x           ; wholly above the top (-32..-22)?
+warp_logic_f2:  ldaa    O_Y,x           ; wholly above the top (-32..-22)?
                 cmpa    #224
                 bcs     wp_r
                 cmpa    #235
@@ -1181,11 +1182,11 @@ wp_r:           rts
 wp_flame:                               ; X = ship: the afterburner flickers
                 ldaa    frame_count
                 anda    #2
-                beq     +
+                beq     wp_flame_f1
                 ldd     #shipw2_dsc
-                bra     ++
-+               ldd     #shipw1_dsc
-+               std     O_SPR,x
+                bra     wp_flame_f2
+wp_flame_f1:    ldd     #shipw1_dsc
+wp_flame_f2:    std     O_SPR,x
                 rts
 
 coast_logic:                            ; just stars for a moment, then the
@@ -1194,9 +1195,9 @@ coast_logic:                            ; just stars for a moment, then the
                 inc     area
                 ldaa    area
                 cmpa    #NAREAS
-                bcs     +
+                bcs     coast_logic_f1
                 clr     area            ; after the last: round again
-+               jsr     area_begin
+coast_logic_f1: jsr     area_begin
                 jsr     map_show
                 ldx     #ship
                 ldaa    #(128-ship_W)/2
@@ -1224,14 +1225,15 @@ arrive_logic:                           ; rise in and brake to a stop
                 bcc     wp_r            ; still below the screen
                 ldaa    frame_count     ; the stars slow down
                 anda    #3
-                bne     +
+                bne     arrive_logic_f1
                 ldaa    warpf
                 cmpa    #1
-                beq     +
+                beq     arrive_logic_f1
                 dec     warpf
-+               ldd     O_DY,x
+arrive_logic_f1:
+                ldd     O_DY,x
                 addd    #$0028
-                bmi     +
+                bmi     arrive_logic_f2
                 jsr     obj_erase       ; stopped: back to the normal ship
                 ldx     #ship
                 ldd     #ship_dsc
@@ -1244,7 +1246,8 @@ arrive_logic:                           ; rise in and brake to a stop
                 ldaa    #1
                 staa    status_t
                 rts
-+               std     O_DY,x
+arrive_logic_f2:
+                std     O_DY,x
                 rts
 
 ; ---------------------------------------------------------------- map
@@ -1267,13 +1270,13 @@ map_show:
                 adda    #'1'
                 jsr     txt_char
                 ldx     #TXT_AT(MAP_BOTTOM-NAREAS*MAP_SEG,MAP_COL) ; the strip
--               ldaa    col_b
+map_show_b1:    ldaa    col_b
                 anda    #$30
                 staa    0,x
                 ldab    #ROW_BYTES
                 abx
                 cpx     #TXT_AT(MAP_BOTTOM,MAP_COL)
-                bne     -
+                bne     map_show_b1
                 clra                    ; the areas' labels
                 bsr     map_label
                 ldaa    #1
@@ -1313,10 +1316,10 @@ map_show:
                 jsr     spr_art
                 ldaa    #MAP_TIME
                 staa    mp_t
--               jsr     frame_wait
+map_show_b2:    jsr     frame_wait
                 jsr     snd_frame
                 dec     mp_t
-                bne     -
+                bne     map_show_b2
                 jsr     cls             ; back to play: everything redraws
                 jsr     stars_init
                 ldaa    #1
@@ -1340,9 +1343,9 @@ map_label:
                 psha
                 ldab    col_b
                 cmpa    area
-                bne     +
+                bne     map_label_f1
                 ldab    #TXT_WHITE
-+               stab    txt_col
+map_label_f1:   stab    txt_col
                 inca                    ; row = bottom - (n + 1/2) segments
                 ldab    #MAP_SEG
                 mul
@@ -1413,11 +1416,12 @@ status_update:
                 ldx     #status_buf     ; blank
                 clra
                 clrb
--               std     0,x
+status_update_b1:
+                std     0,x
                 inx
                 inx
                 cpx     #status_buf+BAND*ROW_BYTES
-                bne     -
+                bne     status_update_b1
                 ldaa    col_o
                 staa    txt_col
                 ldx     #BUF_AT(1,1)
@@ -1511,11 +1515,11 @@ bu_clear:
                 ldx     #TXT_AT(BANNER_ROW,0)
                 clra
                 clrb
--               std     0,x
+bu_clear_b1:    std     0,x
                 inx
                 inx
                 cpx     #TXT_AT(BANNER_ROW+5,0)
-                bne     -
+                bne     bu_clear_b1
 bu_done:        rts
 
 ; ---------------------------------------------------------------- title
@@ -1535,7 +1539,7 @@ title_draw:
                 bne     td_nosample     ; first game
                 ldx     #TXT_AT(92,3)   ; a block that should look orange
                 ldab    #10
--               ldaa    col_o
+title_draw_b1:  ldaa    col_o
                 staa    0,x
                 staa    1,x
                 staa    2,x
@@ -1544,7 +1548,7 @@ title_draw:
                 abx
                 pulb
                 decb
-                bne     -
+                bne     title_draw_b1
                 ldx     #TXT_AT(92,7)
                 ldd     #s_sample1
                 jsr     txt_str
@@ -1577,23 +1581,23 @@ key_c:                                  ; A = 1 while C is held
 rnd:
                 ldd     seed
                 lsrd
-                bcc     +
+                bcc     rnd_f1
                 eora    #$B4
-+               std     seed
+rnd_f1:         std     seed
                 rts
 
 cls:
                 ldx     #SCREEN
                 clra
                 clrb
--               std     0,x
+cls_b1:         std     0,x
                 std     2,x
                 inx
                 inx
                 inx
                 inx
                 cpx     #SCREEN_END
-                bne     -
+                bne     cls_b1
                 rts
 
 ; ---------------------------------------------------------------- data

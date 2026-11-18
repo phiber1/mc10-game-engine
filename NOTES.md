@@ -477,3 +477,13 @@ blue.  `bench/waves.asm` converted:
   lowering the ping (a 2 kHz tone cost ~30% CPU while playing) and a
   quick reject before the boss hit tests.  Main segment ends ~$9AE0.
 * make check covers the boss: arrival after the waves, kill, warp.
+* **Bug (owner report): the boss came after one wave.**  Another nameless
+  label: new `+` labels inserted into wave_logic retargeted a `bne +`, so
+  every "start the next wave" went to "the area's waves are done".  Fix:
+  `tools/nameless.py` converted every nameless label in bench/game.asm to
+  a named one (the binary came out byte-identical, proving the conversion
+  exact), then the fix was made with named labels.  New check: in normal
+  play neither the area's end nor the boss comes before area 1's third
+  wave (it flags the buggy build: 52 bad samples of 60).
+* Rule from now on: no new nameless labels in the game; convert engine
+  files the same way when next touching them.
