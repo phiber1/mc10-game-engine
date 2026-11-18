@@ -10,6 +10,8 @@
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
 #   make run-game        the game prototype: title, score, lives (run-gamek: meter)
 #   make check           headless checks of the game prototype
+#   make run-view        a still display of every sprite in a sprite file
+#                        (VIEW=sprites/NAME.spr, default sprites/game.spr)
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.bin: a DECB binary for the
@@ -147,6 +149,16 @@ shot-%: build/%.raw
 	$(HEADLESS) $(ROMS)/MC10.BIN mcx32sd:$(ROMS)/mcx32sd_flash.bin 8k frames:200 \
 	    load:$<,$(LOAD) pc:$(LOAD) frames:$(FRAMES) ppm:build/$*.ppm >/dev/null
 
+# The sprite viewer: build/view_spr.inc and the drawing code come from
+# $(VIEW), rebuilt every time (VIEW may change between runs)
+VIEW    ?= sprites/game.spr
+build/view_spr.inc: FORCE build/spritec | build
+	build/spritec $(VIEW) > $@
+build/view_list.inc: build/view_spr.inc tools/sprview.py
+	python3 tools/sprview.py $(VIEW) build/view_spr.inc > $@
+build/view.s: build/view_list.inc build/view_spr.inc
+FORCE:
+
 # Headless checks of the game prototype (needs the emulator's harness)
 check: build/game.bin
 	VMC10=$(VMC10) sh tests/game_check.sh
@@ -154,5 +166,5 @@ check: build/game.bin
 clean:
 	rm -rf build
 
-.PHONY: all clean variants smdemo check
+.PHONY: all clean variants smdemo check FORCE
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc build/%.bin
