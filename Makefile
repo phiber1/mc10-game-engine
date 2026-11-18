@@ -12,8 +12,11 @@
 #   make check           headless checks of the game prototype
 #   make log-tick        run it headless and print the debug-port log
 #
-# Each bench/NAME.asm builds build/NAME.c10 (CLOADM) and build/NAME.bin
-# (MCX32-SD LOADM).  Programs load and start at $6000.
+# Each bench/NAME.asm builds build/NAME.bin: a DECB binary for the
+# MCX32-SD's LOADM (8K mod + MCX32-SD required), with a main segment at
+# $6000-$ADFF and optionally a low one at $0400-$1FFF.  Programs start at
+# $6000.  (build/NAME.c10, for CLOADM, still builds on request for
+# single-segment programs.)
 
 VMC10   ?= $(HOME)/vmc10-linux
 EMU     ?= $(VMC10)/vmc10
@@ -30,9 +33,12 @@ PROGS   := $(basename $(notdir $(wildcard bench/*.asm)))
 ENGINE  := $(wildcard engine/*.asm engine/*.inc)
 SPRITES := $(patsubst sprites/%.spr,build/%_spr.inc,$(wildcard sprites/*.spr))
 
-all: $(foreach p,$(PROGS),build/$(p).c10 build/$(p).bin)
+all: $(foreach p,$(PROGS),build/$(p).bin)
 
 build/mkc10: tools/mkc10.c | build
+	$(CC) $(CFLAGS) -o $@ $<
+
+build/p2decb: tools/p2decb.c | build
 	$(CC) $(CFLAGS) -o $@ $<
 
 build/spritec: tools/spritec.c | build
@@ -58,8 +64,11 @@ build/%.raw: build/%.p
 build/%.c10: build/%.raw build/mkc10
 	build/mkc10 $< $@ $(shell echo $* | tr a-z A-Z | cut -c1-8) $(LOAD) $(LOAD)
 
-build/%.bin: build/%.raw build/mkc10
-	build/mkc10 $< $@ $* $(LOAD) $(LOAD)
+# The DECB binary straight from ASL's object file, every byte checked to
+# lie in the low or main segment (clear of what LOADM itself uses)
+SEGMENTS := 0400-1FFF 6000-ADFF
+build/%.bin: build/%.p build/p2decb
+	build/p2decb $< $@ $(LOAD) $(SEGMENTS)
 
 # Sprite test variants for visual checking: build/sp_<art><mode>.c10
 #   art m = 16x16 mono (shown without artifact colours), a = 8x8 artifact
@@ -81,7 +90,7 @@ NSPR_m5 := 20
 NSPR_a5 := 20
 SPVARS  := m0 m1 m2 m3 m4 m5 a0 a1 a2 a3 a4 a5
 
-variants: $(foreach v,$(SPVARS),build/sp_$(v).c10 build/spk_$(v).c10)
+variants: $(foreach v,$(SPVARS),build/sp_$(v).bin build/spk_$(v).bin)
 
 build/sp_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
@@ -96,20 +105,23 @@ build/spk_%.s: bench/sprites.asm $(ENGINE) $(SPRITES) Makefile | build
 # Sprite manager demo builds: build/sm_m.c10 (mono), sm_a (artifact), and
 # sm_mk / sm_ak with the CPU meter.
 SMVARS  := m a mk ak
-smdemo: $(foreach v,$(SMVARS),build/sm_$(v).c10)
+smdemo: $(foreach v,$(SMVARS),build/sm_$(v).bin)
 
 build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) \
 	    -DART=$(if $(findstring a,$*),1,0) -DMETER=$(if $(findstring k,$*),1,0) \
 	    -DNSPR=16 $(CPPDEFS) $< -o $@
 
-# Run in the emulator: CLOADM from the cassette image, then EXEC.
-# Mono programs run with artifact colours off.  DBGLOG=FILE logs the
-# debug port to FILE.
-run-%: build/%.c10
-	$(EMU) --mcx32sd --8k $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
+# Run in the emulator: the build/sd folder is the MCX32-SD's SD card;
+# LOADM the program, then EXEC.  Mono programs run with artifact colours
+# off.  DBGLOG=FILE logs the debug port to FILE.
+SD      := build/sd
+run-%: build/%.bin
+	mkdir -p $(SD)
+	cp $< $(SD)/$(shell echo $* | tr a-z A-Z).BIN
+	$(EMU) --mcx32sd --8k --sd $(SD) $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
-	    --tape $< --type 'CLOADM\nEXEC\n'
+	    --type 'LOADM"$(shell echo $* | tr a-z A-Z)"\nEXEC\n'
 comma := ,
 
 # Headless: load the raw binary straight into memory and jump to it.
@@ -136,11 +148,11 @@ shot-%: build/%.raw
 	    load:$<,$(LOAD) pc:$(LOAD) frames:$(FRAMES) ppm:build/$*.ppm >/dev/null
 
 # Headless checks of the game prototype (needs the emulator's harness)
-check: build/game.raw
+check: build/game.bin
 	VMC10=$(VMC10) sh tests/game_check.sh
 
 clean:
 	rm -rf build
 
 .PHONY: all clean variants smdemo check
-.PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc
+.PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc build/%.bin

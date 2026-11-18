@@ -1626,10 +1626,18 @@ objs_end:
 #include "sprite.asm"
 #include "sprman.asm"
 #include "flight.asm"
-#include "sintab.asm"
 #include "input.asm"
 #include "sound.asm"
 #include "stars.asm"
 #include "text.asm"
 #include "colswap.asm"
 #include "game_spr.inc"
+                CODE_CHECK
+
+; ---------------------------------------------------------------- low
+; The low segment ($0400-$1FFF), loaded by LOADM along with the main one:
+; the aliens' and explosions' sprite code and the sine table.
+                org     LOW
+#include "game_lo_spr.inc"
+#include "sintab.asm"
+                LOW_CHECK

@@ -1,20 +1,24 @@
 #!/bin/sh
 # game_check.sh: headless checks of the game prototype (bench/game.asm).
-# Run from the repository root with "make check".  Needs the VMC10 for
+# Run from the repository root with "make check".  Loads build/game.bin
+# with LOADM from an SD folder, as a player would.  Needs the VMC10 for
 # Linux emulator's headless harness and ROMs (VMC10=..., default
 # ~/vmc10-linux).
 set -u
 VMC10=${VMC10:-$HOME/vmc10-linux}
 H=$VMC10/build/headless
 R=$VMC10/roms
-RAW=build/game.raw
+BIN=build/game.bin
 LST=build/game.lst
+SD=build/sd-check
+mkdir -p $SD && cp $BIN $SD/GAME.BIN
 pass=0; fail=0
 check() {   # name, condition (shell test)
     if eval "$2"; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1"; fail=$((fail+1)); fi
 }
 sym() { printf '%04X' 0x$(awk '/Symbol Table/{p=1} p' $LST | tr '|' '\n' | awk -v n=$1 '$1==n{print $3}'); }
-run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k frames:200 load:$RAW,6000 pc:6000 "$@"; }
+# load the game the way a player does: LOADM from the SD card, then EXEC
+run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 "$@"; }
 memval() { grep "^mem $1" | sed -n "${2:-1}p" | awk '{print strtonum("0x"$3)}'; }
 
 SHIP=$(sym ship); MODE=$(sym mode); WARPF=$(sym warpf); AREA=$(sym area)

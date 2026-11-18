@@ -85,3 +85,16 @@ BSS_CHECK       macro
                 error   "BSS variables overflow into the stack"
                 endif
                 endm
+
+; LOW_CHECK / CODE_CHECK: at the end of a program's low and main segments:
+; stop the assembly if a segment outgrows its space.
+LOW_CHECK       macro
+                if      * > LOW_END
+                error   "the low segment ($0400-$1FFF) is full"
+                endif
+                endm
+CODE_CHECK      macro
+                if      * > CODE_END
+                error   "the main segment ($6000-$ADFF) is full"
+                endif
+                endm

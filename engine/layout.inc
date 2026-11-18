@@ -1,13 +1,18 @@
 ; layout.inc: CPU, memory layout and direct-page variables.
 ; Included first by every program.
 ;
-; Memory (8K mod + MCX32-SD; the low 24K also fits an 8K mod + 16K pack):
+; Memory (8K internal mod + MCX32-SD, required).  Programs load with the
+; MCX32-SD's LOADM from a DECB .BIN of up to two segments:
 ;   $0080-$00FF  6803 internal RAM: engine variables (direct page, fast)
+;   $0200-$03FF  MCX BASIC's interrupt hooks and variables: LOADM uses them
+;   $0400-$1FFF  LOW: the low segment (MCX32-SD SRAM, 7K): sprites, tables
+;   $2000-$3FFF  MCX32-SD flash (BIOS); $3C00-$3FFF is the top gutter
 ;   $4000-$57FF  RG6 screen
 ;   $5800-$5BFF  bottom gutter (hidden rows 192-223, see sprite.asm)
 ;   $5C00-$5EFF  BSS: programs' ordinary variables (org BSS)
 ;   $5F00-$5FFF  stack (grows down from $5FFF)
-;   $6000-       code and data
+;   $6000-$ADFF  CODE: the main segment (19.5K); above it, BASIC's stack
+;                and string space are in use while LOADM runs
 
                 cpu     6801            ; the 6803 is a ROM-less 6801
                 page    0               ; no listing page breaks
@@ -46,6 +51,9 @@ STACK_TOP       equ     $5FFF
 BSS             equ     $5C00           ; ordinary variables, up to BSS_END
 BSS_END         equ     $5F00
 CODE            equ     $6000
+CODE_END        equ     $AE00           ; LOADM's own stack is at ~$AF2C
+LOW             equ     $0400           ; the low segment
+LOW_END         equ     $2000
 
 ; ---------------------------------------------------------------- direct page
                 org     $0080

@@ -20,48 +20,6 @@ W..OO..W
 ...OO...
 end
 
-# Alien type 1: saucer (orange, white dome, blue legs)
-sprite saucer artifact halo 1 2
-..WWWW..
-.WOWWOW.
-OOOOOOOO
-O.OOOO.O
-OOOOOOOO
-.BB..BB.
-.B.BB.B.
-B..BB..B
-B......B
-.B....B.
-end
-
-# Alien type 2: dart (blue and white)
-sprite dart artifact halo 1 2
-...WW...
-..WBBW..
-..WBBW..
-.WBBBBW.
-WBB..BBW
-WB.BB.BW
-W..BB..W
-...BB...
-..B..B..
-.B....B.
-end
-
-# Alien type 3: orbiter (orange and white, blue eyes)
-sprite orbiter artifact halo 1 2
-..OOOO..
-.OWWWWO.
-OOWOOWOO
-OOOOOOOO
-.OBOOBO.
-..OOOO..
-.O.OO.O.
-O..OO..O
-.O....O.
-O......O
-end
-
 # The ship's shot: a white column, 4 rows a frame (no horizontal halo:
 # it only moves up)
 sprite shot artifact halo 0 4
@@ -80,59 +38,6 @@ O
 W
 O
 O
-end
-
-# Explosion: four frames in the aliens' 8x10 box (flash, burst, ring, debris)
-sprite boom1 artifact halo 1 2
-........
-........
-...WW...
-..WOOW..
-..OWWO..
-..WOOW..
-...WW...
-........
-........
-........
-end
-
-sprite boom2 artifact halo 1 2
-........
-.O..W..O
-..OWWO..
-.WOOOOW.
-OWO..OWO
-.WOOOOW.
-..OWWO..
-.O..W..O
-........
-........
-end
-
-sprite boom3 artifact halo 1 2
-O..W...O
-..O..O..
-.W....W.
-W......W
-........
-W......W
-.W....W.
-..O..O..
-O...W..O
-........
-end
-
-sprite boom4 artifact halo 1 2
-........
-.B....O.
-........
-O......B
-........
-........
-B......O
-........
-.O....B.
-........
 end
 
 # The ship at warp speed, with its afterburner: two flame lengths that

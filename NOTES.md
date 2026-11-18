@@ -442,3 +442,20 @@ blue.  `bench/waves.asm` converted:
   is a per-row stack blast (LDAA n,X / PSHA, ~240 cycles a row with
   interrupts off).  Shots end under the bar; stars stay below it
   (STAR_TOP).  Aliens now slide out from under the bar.
+
+### Memory segments and loading (2026-11-17)
+
+* The 8K mod + MCX32-SD are required, so programs ship as a DECB `.BIN`
+  loaded with the MCX32-SD's `LOADM` (no `.C10`, which is one contiguous
+  block).  `tools/p2decb` reads ASL's object file and writes one segment
+  per contiguous block, failing the build for any byte outside
+  `$0400-$1FFF` (low) and `$6000-$ADFF` (main).
+* What LOADM itself uses (measured in the emulator): the direct page,
+  `$0103-$0104`, `$022A-$0283`, `$0316-$0317` (BASIC's variables beside
+  the interrupt hooks), and BASIC's stack at ~`$AF2C` with string space
+  above.  No RAM sector buffer: the BIOS copies straight to the target.
+* Game: low `$0400-$1E6B` (alien and explosion sprites, sine table, 6.7K),
+  main `$6000-$8E53` (11.6K): ~8K free in main, ~400 bytes in low.
+  LOW_CHECK / CODE_CHECK fail the assembly on overflow.
+* `make run-NAME` uses `build/sd` as the SD card; `make check` loads the
+  game with LOADM too.  Both segments verified byte-exact by checksum.

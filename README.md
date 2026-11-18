@@ -13,21 +13,28 @@ from Darren Ottery's games.
 
 ## Building
 
-Needs [ASL](http://john.ccac.rwth-aachen.de:8000/as/) (`asl`, `p2bin`), a
-C compiler (for cpp and the tools) and make.  For running, the
+Needs [ASL](http://john.ccac.rwth-aachen.de:8000/as/) (`asl`), a C
+compiler (for cpp and the tools) and make.  For running, the
 [VMC10 for Linux](https://github.com/phiber1/vmc10-linux) emulator, checked
 out next to this repository (or set `VMC10=`).
 
 ```
 make                    # build every program in bench/ (debug build)
 make DEBUG=0            # release build: no debug-port writes
-make run-sprites        # run a program in the emulator (MCX32-SD + 8K)
-make log-sprites        # run it headless and print the debug-port log
+make run-game           # run the game prototype in the emulator
+make check              # headless checks of the game prototype
+make log-sprites        # run a benchmark headless, print the debug-port log
 ```
 
-Each `bench/NAME.asm` becomes `build/NAME.c10` (for CLOADM) and
-`build/NAME.bin` (for the MCX32-SD's LOADM).  Programs load and start at
-`$6000`.
+**Target: an MC-10 with the internal 8K RAM mod and an MCX32-SD.**  Each
+`bench/NAME.asm` becomes `build/NAME.bin`, a DECB binary for the
+MCX32-SD's `LOADM`: a main segment at `$6000-$ADFF` and, for programs that
+need it, a low segment at `$0400-$1FFF` (the MCX32-SD's low SRAM).  The
+build refuses any byte outside those ranges, which keeps clear of what
+`LOADM` itself uses (BASIC's variables at `$0200-$03FF`, its stack near
+`$AF00`).  `make run-NAME` copies the binary into `build/sd`, the
+emulator's SD card, and types `LOADM"NAME"` and `EXEC`.  On real hardware,
+copy the `.BIN` to the SD card and do the same.
 
 ## Layout
 
@@ -36,7 +43,8 @@ Each `bench/NAME.asm` becomes `build/NAME.c10` (for CLOADM) and
 | `engine/` | Hardware definitions, memory layout, frame tick, sprite calls, sprite manager |
 | `bench/` | Proof-of-concept benchmarks and demos (`tick`, `sprites`, `smdemo`) |
 | `sprites/` | Text-art sprites, compiled by `tools/spritec` |
-| `tools/` | `spritec` (sprite compiler), `mkc10` (C10/DECB wrapper), `ppm2png` |
+| `tools/` | `spritec` (sprite compiler), `p2decb` (ASL object file to a multi-segment DECB `.BIN`), `mkfont.py`, `mknotes.py`, `pathsim.py`, `ppm2png`, `mkc10` (legacy `.C10`) |
+| `tests/` | `game_check.sh`: headless checks of the game (`make check`) |
 
 ## Sprites
 
