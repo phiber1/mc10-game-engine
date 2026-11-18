@@ -16,7 +16,9 @@ F_TURN          equ     O_USER+1        ; heading change per frame (signed)
 F_CNT           equ     O_USER+2        ; frames left in this P_FLY
 F_SPD           equ     O_USER+3        ; speed (0-2)
 F_PC            equ     O_USER+4        ; 2 bytes: the next script byte
-FL_BYTES        equ     6
+F_FLAGS         equ     O_USER+6        ; FF_WRAP: may fly through the sides
+FL_BYTES        equ     7
+FF_WRAP         equ     $01
 ;
 ; Script commands:
 P_FLY           equ     0               ; P_FLY, frames, turn: fly, turning
@@ -27,6 +29,8 @@ P_AIM           equ     4               ; P_AIM: head for (fl_tx, fl_ty)
 P_EVENT         equ     5               ; P_EVENT, n: fl_event = n for the game
 P_TURNBY        equ     6               ; P_TURNBY, n: heading += n at once
                                         ; (128 = an instant U-turn)
+P_WRAP          equ     7               ; P_WRAP, 0/1: fly through the sides
+                                        ; (the game wraps it to the other one)
 ;
 ; fl_start      X = object, D = script: start flying it
 ; fl_step       X = object: one frame (run commands, turn, set velocity).
@@ -41,13 +45,15 @@ fl_start:
                 std     F_PC,x
                 clr     F_CNT,x
                 clr     F_TURN,x
+                clr     F_FLAGS,x
                 rts
 
 fl_step:
                 stx     fl_obj
                 clr     fl_event
                 ldaa    F_CNT,x
-                bne     fl_fly
+                beq     fl_fetch
+                jmp     fl_fly
 fl_fetch:
                 ldx     fl_obj          ; run commands until a P_FLY
                 ldx     F_PC,x
@@ -63,6 +69,8 @@ fl_fetch:
                 beq     fl_cmd_aim
                 cmpa    #P_TURNBY
                 beq     fl_cmd_turnby
+                cmpa    #P_WRAP
+                beq     fl_cmd_wrap
                 ; P_EVENT
                 ldaa    1,x
                 staa    fl_event
@@ -80,6 +88,13 @@ fl_cmd_head:
                 ldx     F_PC,x
                 ldab    #2
                 bra     fl_adv
+fl_cmd_wrap:
+                ldaa    1,x
+                ldx     fl_obj
+                staa    F_FLAGS,x
+                ldx     F_PC,x
+                ldab    #2
+                jmp     fl_adv
 fl_cmd_turnby:
                 ldaa    1,x
                 ldx     fl_obj
@@ -260,5 +275,5 @@ i               set     i+1
                 endm
 
                 if      OBJ_EXTRA < FL_BYTES
-                error   "flight.asm needs #define OBJ_EXTRA of at least FL_BYTES (6)"
+                error   "flight.asm needs #define OBJ_EXTRA of at least FL_BYTES (7)"
                 endif

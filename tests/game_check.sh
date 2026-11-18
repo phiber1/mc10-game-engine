@@ -68,10 +68,21 @@ check "never more than 8 aliens flying (most seen: $most)" "[ $most -le 8 ] && [
 #     (The bug: lane 10 entered at x 251 and stuck, wrapping onto the
 #     next rows, unshootable.)
 A2=$(sym area2); W2=$(printf '%04X' $((0x$A2 + 8)))
-samples=""; for i in $(seq 1 40); do samples="$samples frames:15 poke:$ALIVE,00 mem:$ALIENS,190"; done
+samples=""; for i in $(seq 1 40); do samples="$samples frames:15 poke:$ALIVE,00 mem:$ALIENS,200"; done
 offside=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W2 poke:$(sym wv_x),67 poke:$(sym wv_left),0E poke:$(sym wv_timer),01 $samples | \
-    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*19; x=strtonum("0x"$(b)); s=$(b+8)$(b+9); if(s!="0000" && x>=118) o++}} END{print o+0}')
+    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && x>=118 && !(f%2)) o++}} END{print o+0}')
 check "aliens stay on screen when launches outnumber lanes (samples off: $offside)" "[ $offside -eq 0 ]"
+
+# 2d. Wrap-around paths: area 1's sweep wave (saucers drifting right
+#     through the edge) is forced; aliens are seen crossing from the right
+#     edge to the left, and none is left stuck straddling the edge.
+W4=$(printf '%04X' $((0x$(sym area1) + 3*8)))
+samples=""; for i in $(seq 1 600); do samples="$samples frames:1 mem:$ALIENS,200"; done
+res=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W4 poke:$(sym wv_x),14 poke:$(sym wv_left),06 poke:$(sym wv_timer),01 $samples | \
+    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && f%2){ if(px[i]>110 && x<15) cr++; if(x>=118){st[i]++; if(st[i]>mx) mx=st[i]} else st[i]=0; px[i]=x } else {px[i]=0; st[i]=0} }} END{printf "%d %d", cr+0, mx+0}')
+set -- $res
+check "wrapping aliens cross from one side to the other ($1 crossings)" "[ $1 -ge 2 ]"
+check "none stays straddling the edge (longest: $2 frames)" "[ $2 -le 30 ]"
 
 # 2b. Losing a ship clears the field: with aliens flying, the ship is
 #     lost (dead set, its countdown about to end); right after the respawn

@@ -546,3 +546,18 @@ blue.  `bench/waves.asm` converted:
   first one; any live alien found off the side is put back inside and
   turned round.  Reproduced deterministically (14 launches, alive held
   open: the old build puts an alien at x 251) and added to make check.
+
+### Wrap-around aliens (owner's request, Galaxian-style)
+
+* `P_WRAP 1` in a flight script lets an alien fly through the side edges
+  (flight.asm F_FLAGS / FF_WRAP; objects are now 20 bytes, AN_BASE 7).
+  While straddling an edge its spilled part draws at the other side one
+  row lower (the screen's rows are laid end to end); when the next move
+  would cross, the old image is erased (the halo can't bridge the jump:
+  a one-frame flicker) and x flips by 128 (x < 128, so toggle bit 7).
+  Edge mirroring and off-side recovery skip wrapping aliens.
+* New paths (pathsim: crossings, no climbing off the top): sweepR /
+  sweepL (long shallow diagonals with curves), weave (fast horizontal
+  passes with U-turns, then a dive).  A wrap wave or two in every area.
+* make check: forced sweep wave, aliens cross right -> left (6 in 10 s),
+  none stays straddling.  Main segment ends $A3A6 (~2.6K free).

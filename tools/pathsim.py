@@ -10,8 +10,10 @@ SIN = [int(512.0 * math.sin(i * math.pi / 128.0)) for i in range(256)]
 def s16(v): return v - 65536 if v & 0x8000 else v
 
 def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0, halfx=False, xmax=256):
+    wrap = False
     """script: list of tuples like ('fly', n, turn), ('head', a), ('speed', s),
-    ('goto', index), ('event', n), ('turnby', n).  Positions are 8.8."""
+    ('goto', index), ('event', n), ('turnby', n), ('wrap', 0/1).
+    side_hits lists frames of edge mirrors (positive) and wraps (negative).  Positions are 8.8."""
     x, y = x0 << 8, y0 << 8
     ang, turn, cnt, spd, pc = head0, 0, 0, speed0, 0
     xs, ys, wraps, events, side_hits = [], [], [], [], []
@@ -25,6 +27,7 @@ def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0, halfx=False, x
                 elif op[0] == 'goto': pc = op[1]; continue
                 elif op[0] == 'event': events.append(f)
                 elif op[0] == 'turnby': ang = (ang + op[1]) & 255
+                elif op[0] == 'wrap': wrap = bool(op[1])
                 pc += 1
         cnt -= 1
         ang = (ang + turn) & 255
@@ -32,7 +35,10 @@ def run(script, x0, y0, box_w, box_h, frames, head0=64, speed0=0, halfx=False, x
         if halfx: dx >>= 1
         # game logic: side safety (mirror), wrap through the bottom
         nx = ((x + dx) >> 8) & 255
-        if nx >= xmax - box_w:
+        if wrap:
+            if nx >= xmax:                      # through the side: other one
+                x ^= xmax << 8; side_hits.append(-f)
+        elif nx >= xmax - box_w:
             side_hits.append(f); ang = (128 - ang) & 255
             dx, dy = SIN[(ang + 64) & 255] >> spd, SIN[ang] >> spd
             if halfx: dx >>= 1

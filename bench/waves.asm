@@ -13,8 +13,8 @@
 ;
 ;   METER=1     CPU meter
 
-#define OBJ_EXTRA 9                     /* flight (6) + animation (3) */
-#define AN_BASE 6                       /* animation bytes after flight's */
+#define OBJ_EXTRA 10                    /* flight (7) + animation (3) */
+#define AN_BASE 7                       /* animation bytes after flight's */
 #define FL_HALFX 1                      /* artifact colour: 128 pixels across */
 #include "layout.inc"
 
@@ -728,23 +728,23 @@ star_end:
 objs:
 aliens:
                 rept    NALIEN
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 aliens_end:
 bombs:
                 rept    NBOMB
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 bombs_end:
 shots:
                 rept    NSHOT
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 shots_end:
 ship:
                 fcb     (128-ship_W)/2, 0, 160, 0
                 fdb     0, 0, ship_dsc
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 objs_end:
 
 #include "frame.asm"

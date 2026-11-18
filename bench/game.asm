@@ -10,8 +10,8 @@
 ;
 ;   W A S Z / arrows move, SPACE fires.     METER=1  CPU meter
 
-#define OBJ_EXTRA 9                     /* flight (6) + animation (3) */
-#define AN_BASE 6                       /* animation bytes after flight's */
+#define OBJ_EXTRA 10                    /* flight (7) + animation (3) */
+#define AN_BASE 7                       /* animation bytes after flight's */
 #define FL_HALFX 1                      /* artifact colour: 128 pixels across */
 #define STAR_TOP 7                      /* stars stay below the status bar */
 #include "layout.inc"
@@ -411,6 +411,9 @@ al_loop:
 al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
                 bra     al_next
 al_live:
+                ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
+                bita    #FF_WRAP
+                bne     al_inside
                 ldaa    O_X,x           ; off the side somehow?  Back inside
                 cmpa    #128-AL_W       ; (left edge if it wrapped below 0)
                 bcs     al_inside
@@ -427,8 +430,21 @@ al_inside:      jsr     fl_step
                 cmpa    #1
                 bne     al_live_f1
                 jsr     drop_bomb
-al_live_f1:     ldx     obj             ; safety: mirror off the sides
+al_live_f1:     ldx     obj
+                ldaa    F_FLAGS,x       ; a wrapping alien: through the side
+                bita    #FF_WRAP        ; to the other one
+                beq     al_mirror
                 ldd     O_X,x
+                addd    O_DX,x
+                bita    #$80            ; next x past either edge (128-255)?
+                beq     al_live_f2
+                jsr     obj_erase       ; the halo can't bridge the jump
+                ldx     obj
+                ldaa    O_X,x           ; x stays below 128, so the other
+                eora    #$80            ; side is x +/- 128: flip the top bit
+                staa    O_X,x
+                bra     al_live_f2
+al_mirror:      ldd     O_X,x           ; safety: mirror off the sides
                 addd    O_DX,x
                 cmpa    #128-AL_W
                 bcs     al_live_f2
@@ -450,8 +466,9 @@ al_next:
                 ldab    #OBJ_SIZE
                 abx
                 cpx     #aliens_end
-                bne     al_loop
-                rts
+                beq     al_done
+                jmp     al_loop
+al_done:        rts
 
 ; drop a bomb from the alien at obj
 drop_bomb:
@@ -2040,6 +2057,53 @@ pcr_rep:        fcb     P_FLY, 40, 0
                 fcb     P_GOTO
                 fdb     pcr_rep
 
+;; Wrap-around paths: these fly through the side edges and come in at the
+; other side (P_WRAP 1).
+path_sweepR:                            ; long shallow diagonals drifting
+                fcb     P_WRAP, 1       ; right through the edge, with curves
+                fcb     P_SPEED, 0
+                fcb     P_HEAD, 20
+psr_rep:        fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 40, 1
+                fcb     P_FLY, 30, -1
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 60, 0
+                fcb     P_HEAD, 20
+                fcb     P_GOTO
+                fdb     psr_rep
+path_sweepL:                            ; the mirror image
+                fcb     P_WRAP, 1
+                fcb     P_SPEED, 0
+                fcb     P_HEAD, 108
+psl_rep:        fcb     P_FLY, 40, 0
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 40, -1
+                fcb     P_FLY, 30, 1
+                fcb     P_EVENT, 1
+                fcb     P_FLY, 60, 0
+                fcb     P_HEAD, 108
+                fcb     P_GOTO
+                fdb     psl_rep
+path_weave:                             ; fast passes across the screen,
+                fcb     P_WRAP, 1       ; round through the sides, then a dive
+                fcb     P_SPEED, 0
+                fcb     P_HEAD, 64
+pwv_rep:        fcb     P_FLY, 30, 0
+                fcb     P_HEAD, 6
+                fcb     P_FLY, 70, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, 116
+                fcb     P_FLY, 50, 0
+                fcb     P_EVENT, 1
+                fcb     P_TURNBY, -116
+                fcb     P_FLY, 50, 0
+                fcb     P_TURNBY, 58
+                fcb     P_FLY, 60, 0
+                fcb     P_HEAD, 64
+                fcb     P_GOTO
+                fdb     pwv_rep
+
 ; Areas: each a list of waves, ending with fdb 0.  At most 10 waves an
 ; area (the map shows 3 rows per wave).  Later areas launch faster.
 areas:          fdb     area1, area2, area3, area4
@@ -2051,14 +2115,14 @@ area1:                                  ; gentle: 6 at a time, then 8
                 fcb     6, 16, 21, 12
                 fdb     orbiter_dsc, path_circle
                 fcb     6, 14, 35, 0
-                fdb     saucer_dsc, path_loopR
-                fcb     6, 14, 89, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     6, 16, 20, 0
                 fdb     dart_dsc, path_zigLR
                 fcb     6, 16, 103, -12
                 fdb     orbiter_dsc, path_circleR
                 fcb     6, 14, 84, 0
-                fdb     saucer_dsc, path_loopL
-                fcb     8, 12, 30, 0
+                fdb     orbiter_dsc, path_sweepL
+                fcb     8, 14, 100, 0
                 fdb     dart_dsc, path_zigRL
                 fcb     8, 14, 15, 12
                 fdb     0
@@ -2073,10 +2137,10 @@ area2:
                 fcb     8, 12, 30, 0
                 fdb     orbiter_dsc, path_circle
                 fcb     8, 12, 35, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 14, 15, 12
-                fdb     saucer_dsc, path_loopR
-                fcb     8, 11, 89, 0
+                fdb     dart_dsc, path_weave
+                fcb     8, 14, 30, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     8, 12, 20, 0
                 fdb     orbiter_dsc, path_circleR
                 fcb     8, 11, 84, 0
                 fdb     0
@@ -2089,12 +2153,12 @@ area3:
                 fcb     8, 10, 89, 0
                 fdb     dart_dsc, path_zigLR
                 fcb     8, 12, 103, -12
-                fdb     saucer_dsc, path_loopL
-                fcb     8, 10, 30, 0
+                fdb     saucer_dsc, path_sweepL
+                fcb     8, 10, 100, 0
                 fdb     orbiter_dsc, path_circleR
                 fcb     8, 10, 84, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 11, 15, 12
+                fdb     dart_dsc, path_weave
+                fcb     8, 11, 90, 0
                 fdb     saucer_dsc, path_loopR
                 fcb     8, 9, 89, 0
                 fdb     0
@@ -2107,12 +2171,12 @@ area4:
                 fcb     8, 9, 30, 0
                 fdb     orbiter_dsc, path_circle
                 fcb     8, 9, 35, 0
-                fdb     dart_dsc, path_zigLR
-                fcb     8, 10, 103, -12
-                fdb     saucer_dsc, path_loopR
-                fcb     8, 9, 89, 0
-                fdb     orbiter_dsc, path_circleR
-                fcb     8, 8, 84, 0
+                fdb     dart_dsc, path_weave
+                fcb     8, 10, 30, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     8, 9, 20, 0
+                fdb     orbiter_dsc, path_sweepL
+                fcb     8, 8, 100, 0
                 fdb     dart_dsc, path_zigRL
                 fcb     8, 9, 15, 12
                 fdb     0
@@ -2318,29 +2382,29 @@ star_end:
 
 ; Objects, in priority order: aliens, bombs, shots, ship
 objs:
-boss:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-core:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-env1:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-env2:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+boss:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+core:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+env1:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+env2:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 aliens:
                 rept    NALIEN
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 aliens_end:
 bombs:
                 rept    NBOMB
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 bombs_end:
 shots:
                 rept    NSHOT
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
                 endm
 shots_end:
 ship:
                 fcb     (128-ship_W)/2, 0, 160, 0
                 fdb     0, 0, ship_dsc
-                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 objs_end:
 
 #include "frame.asm"
