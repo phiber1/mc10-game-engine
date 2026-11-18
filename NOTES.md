@@ -570,6 +570,14 @@ blue.  `bench/waves.asm` converted:
 * Owner request: **physically different bosses** (story: the area 1
   mothership is dead by area 2).  Memory now: main ends $A3A6 (~2.6K
   free), low ~400 bytes free.  A 24x12 halo 1 1 hull costs ~2.8K.
+* **TOP FIX FIRST (owner, "pizza break"):** start a game and don't move:
+  area 1's first wave (saucers, path_loopL, diagonal dives) never hits
+  the ship at the start position and its bombs take minutes to land by
+  chance.  Spread bomb drops along the diagonal dives (more P_EVENT drop
+  points down the dive legs, and/or drop where the alien is above the
+  ship: aim at fl_tx), so standing still at any spot is punished quickly.
+  Add a make check: an unmoving ship must be lost within ~20-30 s in
+  area 1 (sample lives).
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap
