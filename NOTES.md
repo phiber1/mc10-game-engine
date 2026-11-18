@@ -530,3 +530,10 @@ blue.  `bench/waves.asm` converted:
   at once; the rest of a wave (and relaunched survivors, and escorts) wait
   their turn and slip in as others die.  The area's tally is unchanged.
   make check: never more than 8 seen in two minutes of play.
+* **Bug (owner report): the status bar vanished.**  The faster bar repair
+  called a row-clearing routine with JSR, but that routine restored S to
+  the value its caller had saved (before the JSR pushed a return
+  address), so its RTS returned out of the whole repair, skipping the
+  text rows.  Fix: the routine saves its own S.  New checks: the screen's
+  rows 0-6 match status_buf during play, and the buffer holds text (the
+  broken build fails them).

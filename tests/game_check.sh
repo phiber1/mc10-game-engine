@@ -31,6 +31,19 @@ x0=$(echo "$out" | memval $SHIP 1); x1=$(echo "$out" | memval $SHIP 2)
 check "ship moves left when A is held (x $x0 -> $x1)" "[ $x1 -lt $x0 ]"
 check "play mode with normal stars" "[ $(echo "$out" | memval $MODE) -eq 0 ] && [ $(echo "$out" | memval $WARPF) -eq 1 ]"
 
+# 1b. The status bar is on screen: rows 0-6 match status_buf (sampled a
+#     few times during play, as sprites cross it).
+SB=$(sym status_buf); BAND_BYTES=224
+bad=0
+for t in 300 900 1500; do
+    out=$(run frames:30 'type: ' frames:$t mem:4000,224 mem:$SB,224)
+    scr=$(echo "$out" | grep '^mem 4000' | cut -d: -f2); buf=$(echo "$out" | grep "^mem $SB" | cut -d: -f2)
+    [ -n "$scr" ] && [ "$scr" = "$buf" ] || bad=$((bad+1))
+done
+check "the status bar is on screen and intact ($bad of 3 samples wrong)" "[ $bad -le 1 ]"
+out=$(run frames:30 'type: ' frames:400 mem:$(printf '%04X' $((0x$SB + 32))),32)
+check "the status bar has text in it" "[ \"\$(echo \"$out\" | grep '^mem' | cut -d: -f2 | tr -d ' 0')\" != '' ]"
+
 # 2. Normal play: the area's waves come one after another, and neither
 #    the area's end nor the boss comes before the last wave (area 1 has
 #    3).  Sampled every second over a minute of firing while sweeping.

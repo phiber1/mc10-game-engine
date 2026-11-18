@@ -138,6 +138,7 @@ boss_xmin       rmb     1               ; the hull's sway range
 boss_xmax       rmb     1
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
+sr_bsp          rmb     2
 sr_dst          rmb     2
 sr_n            rmb     1
 BSS_USED        equ     *
@@ -1758,6 +1759,7 @@ sr_last:        ldd     #SCREEN+7*ROW_BYTES-1   ; row 6: blank
                 ; fall through
 sr_blank:                               ; D = a row's last byte: clear the row
                 std     sr_dst
+                sts     sr_bsp          ; (its own S: a JSR may have called it)
                 sei
                 lds     sr_dst
                 clra
@@ -1766,7 +1768,7 @@ sr_blank:                               ; D = a row's last byte: clear the row
                 pshb
                 psha
                 endm
-                lds     sr_sp
+                lds     sr_bsp
                 cli
 sr_done:        rts
 
