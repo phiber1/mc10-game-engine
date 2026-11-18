@@ -71,12 +71,12 @@ BOSS_XMIN       equ     4               ; sway range without envoys ...
 BOSS_XMAX       equ     128-boss1_W-4
 ENV_DXL         equ     envoy_W+2       ; envoys' boxes: left of the hull ...
 ENV_DXR         equ     boss1_W+2       ; ... and right of it
-ENV_DY          equ     2+BOSS_TOP
 BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
 BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
 ENV_FIRE        equ     16              ; frames between envoy bombs
 CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
-CORE_DY         equ     boss1_PADY+BOSS_TOP+4-core_PADY  ; opening
+                                        ; opening (columns 10-13 in every hull)
+CANNON_Y        equ     boss1_PADY+16-bomb_PADY ; bombs from under the hull
 BOSS_FIRE       equ     22              ; frames between cannon shots
 DIE_TIME        equ     120             ; frames of explosions
 SALUTE_TIME     equ     110
@@ -148,6 +148,10 @@ env_t           rmb     1               ; envoy bomb timer
 env_side        rmb     1               ; which envoy bombs next
 boss_xmin       rmb     1               ; the hull's sway range
 boss_xmax       rmb     1
+boss_cdy        rmb     1               ; this boss: the core's row offset
+boss_edy        rmb     1               ; ... the envoys' row offset
+boss_cx         rmb     1               ; ... the left cannon's x offset
+boss_cgap       rmb     1               ; ... and the right one's, from it
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
 sr_bsp          rmb     2
@@ -1142,15 +1146,25 @@ boss_start:
                 std     O_DX,x
                 ldd     #BOSS_DESCEND
                 std     O_DY,x
-                ldd     #boss1_dsc
-                std     O_SPR,x
                 clr     core_flash
                 ldab    area            ; this area's boss: core hits, envoys,
-                ldaa    #5              ; envoy hits, escorts
-                mul
+                ldaa    #BT_SIZE        ; envoy hits, escorts, hull, envoy
+                mul                     ; sprite, offsets
                 addd    #boss_tab
                 std     bm_xy
                 ldx     bm_xy
+                ldd     BT_HULL,x
+                std     boss+O_SPR
+                ldd     BT_ENVOY,x
+                std     ba_dx           ; (scratch until boss_attach)
+                ldaa    BT_CDY,x
+                staa    boss_cdy
+                ldaa    BT_EDY,x
+                staa    boss_edy
+                ldaa    BT_CX,x
+                staa    boss_cx
+                ldaa    BT_CGAP,x
+                staa    boss_cgap
                 ldaa    0,x
                 staa    boss_hp
                 ldaa    1,x
@@ -1167,7 +1181,7 @@ boss_start:
                 ldaa    #BOSS_EXMIN
                 ldab    #BOSS_EXMAX
                 ldx     #env1           ; the envoys
-                ldd     #envoy_dsc
+                ldd     ba_dx
                 std     O_SPR,x
                 ldx     #env2
                 std     O_SPR,x
@@ -1242,12 +1256,12 @@ bl_fight_f2:    dec     boss_t          ; the cannons, in turn
                 staa    boss_t
                 com     boss_side
                 ldaa    O_X,x
-                adda    #boss1_PADX+4-bomb_PADX
+                adda    boss_cx
                 tst     boss_side
                 beq     bl_fight_f3
-                adda    #14
+                adda    boss_cgap
 bl_fight_f3:    ldab    O_Y,x
-                addb    #boss1_PADY+BOSS_TOP+12-bomb_PADY
+                addb    #CANNON_Y
                 jsr     bomb_at
 bl_core:
                 jsr     env_bomb
@@ -1274,7 +1288,7 @@ boss_attach:
                 ldab    O_Y,x
                 std     ba_xy
                 adda    #CORE_DX
-                addb    #CORE_DY
+                addb    boss_cdy
                 ldx     #core
                 bsr     ba_place
                 ldx     #env1
@@ -1286,7 +1300,7 @@ boss_attach:
                 bra     ba_env2
 ba_l:           ldd     ba_xy
                 suba    #ENV_DXL
-                addb    #ENV_DY
+                addb    boss_edy
                 bsr     ba_place
 ba_env2:        ldx     #env2
                 ldd     O_SPR,x
@@ -1296,7 +1310,7 @@ ba_env2:        ldx     #env2
                 jmp     obj_anim_step
 ba_r:           ldd     ba_xy
                 adda    #ENV_DXR
-                addb    #ENV_DY
+                addb    boss_edy
                 ; fall through
 ba_place:                               ; X = object, A, B = x, y; hull's speed
                 staa    O_X,x
@@ -2350,14 +2364,28 @@ area4:
 
 ; Bosses, per area: core hits, escort wave list (it loops)
 ; (core hits, envoys, hits per envoy, escorts)
-boss_tab:       fcb     8, 0, 0
-                fdb     esc1
-                fcb     10, 2, 4
-                fdb     esc2
-                fcb     12, 2, 6
-                fdb     esc3
-                fcb     14, 2, 8
-                fdb     esc4
+; The bosses, one row per area: core hits, envoys, envoy hits, escort
+; waves, hull, envoy sprite, then offsets in the hull (pixels, rows): the
+; core opening's top row, the envoys' top row, the left cannon's column
+; and the right cannon's distance from it.  Every hull is 24x16 with its
+; core opening in columns 10-13.
+BT_HULL         equ     5
+BT_ENVOY        equ     7
+BT_CDY          equ     9
+BT_EDY          equ     10
+BT_CX           equ     11
+BT_CGAP         equ     12
+BT_SIZE         equ     13
+BOSSROW         macro   hp,env,ehp,esc,hull,envoy,crow,erow,ccol,cgap
+                fcb     hp, env, ehp
+                fdb     esc, hull, envoy
+                fcb     boss1_PADY+crow-core_PADY, erow
+                fcb     boss1_PADX+ccol-bomb_PADX, cgap
+                endm
+boss_tab:       BOSSROW 8, 0, 0, esc1, boss1_dsc, envoy_dsc, 8, 6, 4, 14
+                BOSSROW 10, 2, 4, esc2, boss2_dsc, envoy2_dsc, 10, 4, 8, 6
+                BOSSROW 12, 2, 6, esc3, boss3_dsc, envoy3_dsc, 10, 5, 8, 6
+                BOSSROW 14, 2, 8, esc4, boss1_dsc, envoy_dsc, 8, 6, 4, 14
 esc1:           fdb     saucer_dsc, path_circle
                 fcb     4, 20, 35, 0
                 fdb     dart_dsc, path_zigRL
@@ -2430,7 +2458,8 @@ s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
                 fdb     shipw1_dsc, shipw2_dsc, boss1_dsc, core_dsc
-                fdb     corehit_dsc, envoy_dsc, coreshut_dsc, 0
+                fdb     corehit_dsc, envoy_dsc, coreshut_dsc
+                fdb     boss2_dsc, envoy2_dsc, boss3_dsc, envoy3_dsc, 0
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -2584,6 +2613,7 @@ objs_end:
 #include "text.asm"
 #include "colswap.asm"
 #include "game_spr.inc"
+#include "boss3_spr.inc"
                 CODE_CHECK
 
 ; ---------------------------------------------------------------- low
@@ -2591,6 +2621,7 @@ objs_end:
 ; the aliens' and explosions' sprite code and the sine table.
                 org     LOW
 #include "game_lo_spr.inc"
+#include "boss2_spr.inc"
 #include "sintab.asm"
                 LOW_CHECK
 
@@ -2598,4 +2629,8 @@ objs_end:
 ; shift 3 only (warp_begin snaps x to it)
                 if      (((128-ship_W)/2)&3)<>3
                 error   "the arrival x must be on the warp ship's shift (3)"
+                endif
+; every boss hull has boss1's box (the hit tests and placement use it)
+                if      (boss2_W<>boss1_W)||(boss2_H<>boss1_H)||(boss3_W<>boss1_W)||(boss3_H<>boss1_H)
+                error   "boss hulls must all be 24x16 (with their halo, as boss1)"
                 endif

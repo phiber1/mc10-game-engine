@@ -620,6 +620,18 @@ blue.  `bench/waves.asm` converted:
   on top, BOSS_TOP).  BOSS_Y, ENV_DY, CORE_DY and the cannon offset add
   BOSS_TOP, so the hull, core, envoys and cannons sit where they did.
   +551 bytes main.
+* **Bosses 2 and 3 (owner's designs, 2026-11-18).**  sprites/boss2.spr
+  (a classic flying saucer with portals, low segment) and boss3.spr (a
+  glass dome with a one-eyed occupant, main segment) are the owner's
+  files; each also holds its envoy (drafts by Claude: envoy2 a mini
+  saucer drone, envoy3 a floating eyeball with tendrils).  boss_tab rows
+  (BOSSROW macro, BT_SIZE 13) now pick the hull, envoy sprite, the core
+  opening's row, the envoys' row and the cannon columns per area; all
+  hulls must be 24x16 with the opening in columns 10-13 (assembly-time
+  check).  Area 4 uses boss 1 until the owner designs the finale (bigger,
+  several cores/channels).  Memory after: low ends $1EE5 (~280 bytes
+  free), main $A8A8 (~1.4K free): boss 4 will need room (candidates:
+  moving tables or code to low/main, fewer shifts for slow parts).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
