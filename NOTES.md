@@ -598,6 +598,11 @@ blue.  `bench/waves.asm` converted:
   path's first commands are now seen at launch too (wave_logic runs the
   first fl_step).  rnd steps its LFSR 8 bits per call (one bit gave runs
   of near-equal values: x 103, 103, 103).  make check 2e.
+  Then (owner: the instant jump "almost seems like a minor error") each
+  hop waits out of sight: at the new x above the top, velocity zero, a
+  count of HOP_WAIT (24) in F_FLAGS bits 3-7 (FF_WAIT1 = $08) counted
+  down on alternate frames (col_par); at zero fl_velocity resumes the
+  path where it was.  Out of sight ~55 frames per hop (check 2e).
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap

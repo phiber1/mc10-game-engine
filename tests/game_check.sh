@@ -86,15 +86,17 @@ check "none stays straddling the edge (longest: $2 frames)" "[ $2 -le 30 ]"
 
 # 2e. Circling aliens (area 1's orbiter wave, forced) come back in from
 #     the top at a new random x after each dive (owner: they used to dive
-#     in the same columns, so a player could wait them out), and stay on
-#     screen.
+#     in the same columns, so a player could wait them out), stay on
+#     screen, and wait out of sight first (an instant jump looked like a
+#     glitch).
 W3=$(printf '%04X' $((0x$(sym area1) + 2*8)))
 samples=""; for i in $(seq 1 1800); do samples="$samples frames:1 mem:$ALIENS,200"; done
 res=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W3 poke:$(sym wv_x),23 poke:$(sym wv_left),06 poke:$(sym wv_timer),01 $samples | \
-    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); y=strtonum("0x"$(b+2)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && int(f/2)%4){ if(py[i]!="" && py[i]<200 && y>=224){n++; if(!mn||x<mn)mn=x; if(x>mx)mx=x} if(y<192 && x>=118) off++ } py[i]=(s!="0000")?y:""}} END{printf "%d %d %d", n+0, mx-mn, off+0}')
+    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); y=strtonum("0x"$(b+2)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && int(f/2)%4){ if(py[i]!="" && py[i]<200 && y>=224){n++; if(!mn||x<mn)mn=x; if(x>mx)mx=x} if(y<192 && x>=118) off++; v=(y<190); if(pv[i]=="1" && !v) g[i]=NR; if(pv[i]=="0" && v && g[i]){d=NR-g[i]; if(!gm||d<gm)gm=d; g[i]=0} pv[i]=v } else {pv[i]=""; g[i]=0} py[i]=(s!="0000")?y:""}} END{printf "%d %d %d %d", n+0, mx-mn, off+0, gm+0}')
 set -- $res
 check "circling aliens re-enter at new spots ($1 re-entries spread over $2 pixels)" "[ $1 -ge 8 ] && [ $2 -ge 50 ]"
 check "and stay on screen (samples off: $3)" "[ $3 -eq 0 ]"
+check "they stay out of sight a moment before coming back (shortest: $4 frames)" "[ $4 -ge 40 ]"
 
 # 2b. Losing a ship clears the field: with aliens flying, the ship is
 #     lost (dead set, its countdown about to end); right after the respawn

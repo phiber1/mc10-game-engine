@@ -37,6 +37,8 @@ SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
 FF_HOPL         equ     $02             ; F_FLAGS: back in at a random x (event 2)
 FF_HOPR         equ     $04             ; ... for right circles (event 3)
+FF_WAIT1        equ     $08             ; F_FLAGS bits 3-7: a hidden wait (count)
+HOP_WAIT        equ     24              ; ... after a hop: 24 counts = 48 frames
 AIM_W           equ     2               ; aimed drops: within 2 pixels of the nose
 BOMB_WARN       equ     36              ; bombs start 36 rows above the ship (12 frames)
 
@@ -423,7 +425,18 @@ al_used:        ldd     AN_PTR,x        ; exploding?
 al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
                 jmp     al_next
 al_live:
-                ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
+                ldaa    F_FLAGS,x       ; waiting out of sight before coming
+                cmpa    #FF_WAIT1       ; back in (a count in bits 3-7)?
+                bcs     al_go
+                tst     col_par         ; count on alternate frames
+                bne     al_wait
+                suba    #FF_WAIT1
+                staa    F_FLAGS,x
+                cmpa    #FF_WAIT1
+                bcc     al_wait
+                jsr     fl_velocity     ; time's up: on along the path
+al_wait:        jmp     al_next
+al_go:          ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
                 bita    #FF_WRAP
                 bne     al_inside
                 ldaa    O_X,x           ; off the side somehow?  Back inside
@@ -497,6 +510,12 @@ al_live_f2:     ldd     O_Y,x           ; through the bottom: back in at the top
                 beq     al_hop_x
                 adda    #21
 al_hop_x:       staa    O_X,x
+                ldd     #0              ; and wait there a moment, out of
+                std     O_DX,x          ; sight, so it looks intentional
+                std     O_DY,x
+                ldaa    F_FLAGS,x
+                oraa    #HOP_WAIT*FF_WAIT1
+                staa    F_FLAGS,x
 al_top:         ldaa    #256-AL_H
                 staa    O_Y,x
 al_next:
