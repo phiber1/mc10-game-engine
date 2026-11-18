@@ -537,3 +537,12 @@ blue.  `bench/waves.asm` converted:
   text rows.  Fix: the routine saves its own S.  New checks: the screen's
   rows 0-6 match status_buf during play, and the buffer holds text (the
   broken build fails them).
+* **Bug (owner report): a dart stuck half off the right edge, wrapping
+  onto the left, unshootable.**  Staggered-lane waves step the entry x
+  per launch; when relaunched survivors made more launches than lanes,
+  the x ran off the screen (lane 10 of the dart wave entered at x 251),
+  and the side-edge mirror can't recover an alien that is already off
+  screen and diving straight down.  Fixes: entry lanes wrap back to the
+  first one; any live alien found off the side is put back inside and
+  turned round.  Reproduced deterministically (14 launches, alive held
+  open: the old build puts an alien at x 251) and added to make check.

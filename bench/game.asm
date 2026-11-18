@@ -325,9 +325,12 @@ wave_logic_f1:  stx     obj
                 ldab    W_GAP,x
                 stab    wv_timer
                 ldaa    wv_x            ; this alien's entry x; the next one's
-                tab                     ; is W_XSTEP further across
+                tab                     ; is W_XSTEP further across ...
                 addb    W_XSTEP,x
-                stab    wv_x
+                cmpb    #128-AL_W       ; ... back to the first lane if that
+                bcs     wl_xok          ; would be off screen (relaunched
+                ldab    W_X,x           ; survivors can outnumber the lanes)
+wl_xok:         stab    wv_x
                 ldx     obj
                 staa    O_X,x           ; enter just above the top
                 clr     O_XF,x
@@ -408,7 +411,18 @@ al_loop:
 al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
                 bra     al_next
 al_live:
-                jsr     fl_step
+                ldaa    O_X,x           ; off the side somehow?  Back inside
+                cmpa    #128-AL_W       ; (left edge if it wrapped below 0)
+                bcs     al_inside
+                clrb
+                cmpa    #192
+                bcc     al_clamp
+                ldab    #128-AL_W-1
+al_clamp:       stab    O_X,x
+                ldaa    #128            ; and turn it round
+                suba    F_ANG,x
+                staa    F_ANG,x
+al_inside:      jsr     fl_step
                 ldaa    fl_event        ; event 1: drop a bomb
                 cmpa    #1
                 bne     al_live_f1

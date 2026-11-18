@@ -61,6 +61,18 @@ mv2=""; for i in $(seq 1 60); do mv2="$mv2 A A A A A A A A A A S S S S S S S S S
 most=$(run frames:30 'type: ' frames:250 poke:$(sym lives),09 "type:$mv2" $samples | grep '^mem' | awk '{a=strtonum("0x"$3); if(a>m)m=a} END{print m+0}')
 check "never more than 8 aliens flying (most seen: $most)" "[ $most -le 8 ] && [ $most -ge 6 ]"
 
+# 2c. Staggered-lane waves never put an alien off the side, even when
+#     more aliens launch than the wave has lanes (relaunched survivors):
+#     area 2's dart wave (lanes from x 103, step -12) is given 14
+#     launches with the alive counter held open so all 10 slots fill.
+#     (The bug: lane 10 entered at x 251 and stuck, wrapping onto the
+#     next rows, unshootable.)
+A2=$(sym area2); W2=$(printf '%04X' $((0x$A2 + 8)))
+samples=""; for i in $(seq 1 40); do samples="$samples frames:15 poke:$ALIVE,00 mem:$ALIENS,190"; done
+offside=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W2 poke:$(sym wv_x),67 poke:$(sym wv_left),0E poke:$(sym wv_timer),01 $samples | \
+    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*19; x=strtonum("0x"$(b)); s=$(b+8)$(b+9); if(s!="0000" && x>=118) o++}} END{print o+0}')
+check "aliens stay on screen when launches outnumber lanes (samples off: $offside)" "[ $offside -eq 0 ]"
+
 # 2b. Losing a ship clears the field: with aliens flying, the ship is
 #     lost (dead set, its countdown about to end); right after the respawn
 #     no alien is left, and later the survivors come back.
