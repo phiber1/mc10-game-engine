@@ -84,6 +84,18 @@ set -- $res
 check "wrapping aliens cross from one side to the other ($1 crossings)" "[ $1 -ge 2 ]"
 check "none stays straddling the edge (longest: $2 frames)" "[ $2 -le 30 ]"
 
+# 2e. Circling aliens (area 1's orbiter wave, forced) come back in from
+#     the top at a new random x after each dive (owner: they used to dive
+#     in the same columns, so a player could wait them out), and stay on
+#     screen.
+W3=$(printf '%04X' $((0x$(sym area1) + 2*8)))
+samples=""; for i in $(seq 1 1800); do samples="$samples frames:1 mem:$ALIENS,200"; done
+res=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W3 poke:$(sym wv_x),23 poke:$(sym wv_left),06 poke:$(sym wv_timer),01 $samples | \
+    grep "^mem $ALIENS" | awk '{for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); y=strtonum("0x"$(b+2)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && int(f/2)%4){ if(py[i]!="" && py[i]<200 && y>=224){n++; if(!mn||x<mn)mn=x; if(x>mx)mx=x} if(y<192 && x>=118) off++ } py[i]=(s!="0000")?y:""}} END{printf "%d %d %d", n+0, mx-mn, off+0}')
+set -- $res
+check "circling aliens re-enter at new spots ($1 re-entries spread over $2 pixels)" "[ $1 -ge 8 ] && [ $2 -ge 50 ]"
+check "and stay on screen (samples off: $3)" "[ $3 -eq 0 ]"
+
 # 2b. Losing a ship clears the field: with aliens flying, the ship is
 #     lost (dead set, its countdown about to end); right after the respawn
 #     no alien is left, and later the survivors come back.

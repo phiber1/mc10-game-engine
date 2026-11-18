@@ -587,6 +587,17 @@ blue.  `bench/waves.asm` converted:
   (slowest: the start and the centre, 16-21 s); a sweeping player loses
   ships at the old rate and the frame budget is unchanged.  make check
   4c guards it (six positions, 30 s each); it fails on the old build.
+* **Done: circling aliens come back somewhere new (owner's request).**
+  path_circle/circleR (the orange orbiters, and area 1's escorts) dived
+  in the same columns every pass, so on a boss screen the player could
+  ignore them and wait for the boss.  Now the paths start with P_EVENT 2
+  (left circles) or 3 (right): the game sets F_FLAGS bit FF_HOPL/FF_HOPR,
+  and each time such an alien comes through the bottom it re-enters at a
+  random x (1-96, or 22-117 for left circles, so the circles stay on
+  screen; pathsim: the circle spans x0-21..x0 / x0..x0+20).  Events on a
+  path's first commands are now seen at launch too (wave_logic runs the
+  first fl_step).  rnd steps its LFSR 8 bits per call (one bit gave runs
+  of near-equal values: x 103, 103, 103).  make check 2e.
 * **Agreed plan, in order:**
   1. Memory pass: spritec option to compile a sprite for ONE shift (the
      table points every shift at it).  Warp ship (shipw1/2, ~3.5K): snap

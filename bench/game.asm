@@ -35,6 +35,8 @@ MAX_ALIVE       equ     8               ; live aliens on screen at most
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
+FF_HOPL         equ     $02             ; F_FLAGS: back in at a random x (event 2)
+FF_HOPR         equ     $04             ; ... for right circles (event 3)
 AIM_W           equ     2               ; aimed drops: within 2 pixels of the nose
 BOMB_WARN       equ     36              ; bombs start 36 rows above the ship (12 frames)
 
@@ -125,6 +127,7 @@ mp_t            rmb     1
 mp_a            rmb     2
 bm_xy           rmb     2               ; bomb_at: the bomb's position
 bm_dx           rmb     2               ; and its sideways speed
+rnd_n           rmb     1               ; rnd: steps left
 ba_xy           rmb     2               ; boss_attach scratch
 ba_dx           rmb     2
 ba_dy           rmb     2
@@ -352,7 +355,12 @@ wl_xok:         stab    wv_x
                 jsr     fl_start
                 ldx     obj
                 jsr     fl_step         ; first frame: sets the velocity
-                dec     wv_left
+                ldaa    fl_event        ; (a path may start with event 2/3)
+                cmpa    #2
+                bcs     wl_nohop
+                ldx     obj
+                jsr     hop_flag
+wl_nohop:       dec     wv_left
                 inc     alive
 wl_done:        rts
 wl_next:                                ; next wave when at most 2 remain
@@ -413,7 +421,7 @@ al_used:        ldd     AN_PTR,x        ; exploding?
                 ldd     #0
                 std     O_DX,x
 al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
-                bra     al_next
+                jmp     al_next
 al_live:
                 ldaa    F_FLAGS,x       ; wrapping aliens may be anywhere
                 bita    #FF_WRAP
@@ -433,7 +441,11 @@ al_inside:      jsr     fl_step
                 ldaa    fl_event        ; event 1: drop a bomb
                 cmpa    #1
                 beq     al_drop
-                ldx     obj             ; or right over the ship (no spot
+                bcs     al_aim
+                ldx     obj
+                jsr     hop_flag
+                bra     al_live_f1
+al_aim:         ldx     obj             ; or right over the ship (no spot
                 ldaa    O_X,x           ; is safe for a ship that never
                 suba    ship+O_X        ; moves); the rhythm still decides
                 adda    #saucer_PADX+3-ship_PADX-3+AIM_W
@@ -471,7 +483,21 @@ al_live_f2:     ldd     O_Y,x           ; through the bottom: back in at the top
                 bcs     al_next
                 cmpa    #224
                 bcc     al_next
-                ldaa    #256-AL_H
+                ldab    F_FLAGS,x       ; somewhere new?
+                bitb    #FF_HOPL|FF_HOPR
+                beq     al_top
+                jsr     obj_erase       ; (in the hidden rows: just tidy)
+                jsr     rnd             ; x = 1-96, or 22-117 for left
+                ldab    #96             ; circles (they stay on screen)
+                mul
+                inca
+                ldx     obj
+                ldab    F_FLAGS,x
+                bitb    #FF_HOPL
+                beq     al_hop_x
+                adda    #21
+al_hop_x:       staa    O_X,x
+al_top:         ldaa    #256-AL_H
                 staa    O_Y,x
 al_next:
                 ldx     obj
@@ -481,6 +507,17 @@ al_next:
                 beq     al_done
                 jmp     al_loop
 al_done:        rts
+
+; event 2/3 (A) for the alien at X: from now on it comes back in from
+; the top at a random x (2: for left circles, 3: right ones)
+hop_flag:
+                ldab    #FF_HOPL
+                cmpa    #2
+                beq     hop_flag_f1
+                ldab    #FF_HOPR
+hop_flag_f1:    orab    F_FLAGS,x
+                stab    F_FLAGS,x
+                rts
 
 ; drop a bomb from the alien at obj: it keeps the alien's sideways
 ; speed, so bombs thrown along a dive land along its line (an unmoving
@@ -1933,12 +1970,16 @@ key_c:                                  ; A = 1 while C is held
                 rts
 
 ; ---------------------------------------------------------------- misc
-rnd:
+rnd:                                    ; D = a new random 16 bits: the
+                ldaa    #8              ; LFSR steps 8 times, so values in a
+                staa    rnd_n           ; row aren't shifted copies
                 ldd     seed
-                lsrd
+rnd_b1:         lsrd
                 bcc     rnd_f1
                 eora    #$B4
-rnd_f1:         std     seed
+rnd_f1:         dec     rnd_n
+                bne     rnd_b1
+                std     seed
                 rts
 
 cls:
@@ -2083,8 +2124,9 @@ pzl_rep:        ZIG_L
                 fcb     P_GOTO
                 fdb     pzl_rep
 path_circle:                            ; two fast circles, a reversal jink,
-                fcb     P_SPEED, 0      ; then a dive
-                fcb     P_HEAD, 64
+                fcb     P_SPEED, 0      ; then a dive; back in from the top
+                fcb     P_HEAD, 64      ; somewhere else each time
+                fcb     P_EVENT, 2
 pc_rep:         fcb     P_FLY, 40, 0
                 fcb     P_FLY, 64, 4
                 fcb     P_EVENT, 1
@@ -2100,6 +2142,7 @@ pc_rep:         fcb     P_FLY, 40, 0
 path_circleR:                           ; the mirror image
                 fcb     P_SPEED, 0
                 fcb     P_HEAD, 64
+                fcb     P_EVENT, 3
 pcr_rep:        fcb     P_FLY, 40, 0
                 fcb     P_FLY, 64, -4
                 fcb     P_EVENT, 1
