@@ -62,7 +62,8 @@ BS_ENTER        equ     1               ; descending from under the status bar
 BS_FIGHT        equ     2
 BS_DYING        equ     3               ; exploding
 BS_DEFEATED     equ     4               ; gone: the area is won
-BOSS_Y          equ     24              ; where it stops descending
+BOSS_TOP        equ     4               ; boss1's antenna rows, above the hull
+BOSS_Y          equ     24-BOSS_TOP     ; where it stops descending
 BOSS_SPEED      equ     $0080           ; half a pixel a frame
 BOSS_DESCEND    equ     $0040           ; a slow, ominous descent
 WARN_TIME       equ     240             ; the warning: siren and flashing banner
@@ -70,12 +71,12 @@ BOSS_XMIN       equ     4               ; sway range without envoys ...
 BOSS_XMAX       equ     128-boss1_W-4
 ENV_DXL         equ     envoy_W+2       ; envoys' boxes: left of the hull ...
 ENV_DXR         equ     boss1_W+2       ; ... and right of it
-ENV_DY          equ     2
+ENV_DY          equ     2+BOSS_TOP
 BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
 BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
 ENV_FIRE        equ     16              ; frames between envoy bombs
 CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
-CORE_DY         equ     boss1_PADY+4-core_PADY  ; opening
+CORE_DY         equ     boss1_PADY+BOSS_TOP+4-core_PADY  ; opening
 BOSS_FIRE       equ     22              ; frames between cannon shots
 DIE_TIME        equ     120             ; frames of explosions
 SALUTE_TIME     equ     110
@@ -1246,7 +1247,7 @@ bl_fight_f2:    dec     boss_t          ; the cannons, in turn
                 beq     bl_fight_f3
                 adda    #14
 bl_fight_f3:    ldab    O_Y,x
-                addb    #boss1_PADY+12-bomb_PADY
+                addb    #boss1_PADY+BOSS_TOP+12-bomb_PADY
                 jsr     bomb_at
 bl_core:
                 jsr     env_bomb

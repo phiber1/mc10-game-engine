@@ -614,6 +614,12 @@ blue.  `bench/waves.asm` converted:
   on screen (hop_rel latches until none is waiting).  Out of sight
   85-198 frames; check 2e verifies an empty screen before every
   re-entry.
+* **Boss 1 hull: antennae (owner's idea).**  The top corners are
+  notched (a dome between flat shoulders) and a diagonal antenna rises
+  from each shoulder, up and outward, orange-tipped: 24x16 (4 rows added
+  on top, BOSS_TOP).  BOSS_Y, ENV_DY, CORE_DY and the cannon offset add
+  BOSS_TOP, so the hull, core, envoys and cannons sit where they did.
+  +551 bytes main.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
