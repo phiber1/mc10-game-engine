@@ -735,11 +735,11 @@ blue.  `bench/waves.asm` converted:
   rows, a letter 3 bytes by 30 rows, in colour bands bg_band through
   bg_cols = white/col_o/col_b, so it follows the colour swap), "MEET
   THE ALIENS" with the three aliens' real sprites and names (Claude's
-  suggestions: LOOPER the saucer, ZIGGER the dart, BLINKER the orbiter;
-  the cast table), the start prompt, the controls and a credits line
-  (s_credit, placeholder until the owner gives the text).  Bosses and
-  envoys stay off it (mysteries).  The game's name is still the working
-  title STARFALL.
+  names, the owner's choice: LOOPER the saucer, ZAGGER the dart, WARPER
+  the orbiter; the cast table), the start prompt, the controls and the
+  credits line "AN ABENE GAME".  Bosses and envoys stay off it
+  (mysteries).  The name STARFALL sticks (owner: no well-known game has
+  it) unless something better comes up.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

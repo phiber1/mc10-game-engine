@@ -2625,10 +2625,10 @@ cast:           fdb     saucer_hr
                 fdb     TXT_AT(76,CAST_TXT), s_looper
                 fdb     dart_hr
                 fcb     CAST_X, 96
-                fdb     TXT_AT(100,CAST_TXT), s_zigger
+                fdb     TXT_AT(100,CAST_TXT), s_zagger
                 fdb     orbiter_hr
                 fcb     CAST_X, 120
-                fdb     TXT_AT(124,CAST_TXT), s_blinker
+                fdb     TXT_AT(124,CAST_TXT), s_warper
                 fdb     0
 
 ; big_str: X = screen, D = string: the logo letters, magnified (each
@@ -3133,12 +3133,12 @@ s_cast:         fcc     "MEET THE ALIENS"
                 fcb     0
 s_looper:       fcc     "LOOPER"
                 fcb     0
-s_zigger:       fcc     "ZIGGER"
+s_zagger:       fcc     "ZAGGER"
                 fcb     0
-s_blinker:      fcc     "BLINKER"
+s_warper:       fcc     "WARPER"
                 fcb     0
-CREDIT_COL      equ     4               ; (centred: 32 - its length, halved)
-s_credit:       fcc     "CREDITS LINE TO BE DECIDED"
+CREDIT_COL      equ     9               ; (centred: 32 - its length, halved)
+s_credit:       fcc     "AN ABENE GAME"
                 fcb     0
 s_sample1:      fcc     "THIS BLOCK SHOULD BE ORANGE"
                 fcb     0
