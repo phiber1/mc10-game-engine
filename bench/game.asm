@@ -774,18 +774,25 @@ sl_play:        tst     dead
                 jsr     obj_anim_step
 sl_play_f1:     dec     dead_t
                 bne     sl_ret
-                tst     lives
-                beq     sl_over
+                ldaa    lives           ; that was the last ship?
+                cmpa    #1
+                bls     sl_over
                 jsr     field_clear     ; a fresh screen ...
                 jsr     map_show        ; ... after the map
-                clr     dead            ; another ship
-                jsr     ship_place
+                clr     dead            ; another ship: one fewer in reserve,
+                jsr     ship_place      ; counted as it appears
+                dec     lives
+                ldaa    #1
+                staa    status_t
                 ldaa    #INVULN_TIME
                 staa    invuln
                 ldx     #fx_life        ; a fresh ship's phrase
                 ldaa    #9
                 jmp     snd_play
 sl_over:
+                clr     lives           ; none left
+                ldaa    #1
+                staa    status_t
                 inc     gover
                 ldd     #s_gameover
                 jsr     banner_show
@@ -905,12 +912,9 @@ ship_hit:
                 bne     ship_hit_f1
                 tst     invuln
                 bne     ship_hit_f1
-                inc     dead
-                ldaa    #DEAD_TIME
+                inc     dead            ; (the ships count drops when the
+                ldaa    #DEAD_TIME      ; next ship appears, or at game over)
                 staa    dead_t
-                dec     lives
-                ldaa    #1
-                staa    status_t
                 ldx     #ship
                 ldd     #0
                 std     O_DX,x

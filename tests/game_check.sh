@@ -121,6 +121,15 @@ a0=$(echo "$out" | memval $ALIVEV 1); a1=$(echo "$out" | memval $ALIVEV 2); a2=$
 check "aliens flying ($a0) are cleared when the ship is lost ($a1 after the respawn)" "[ $a0 -gt 0 ] && [ $a1 -eq 0 ] && [ $(echo "$out" | memval $DEAD) -eq 0 ]"
 check "and they come back afterwards ($a2)" "[ $a2 -gt 0 ]"
 
+# 2f. The ships count drops when the next ship appears, not when the ship
+#     is lost; losing the last one shows 0 with GAME OVER.
+GO=$(sym gover)
+out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$DEAD,01 poke:$DEADT,30 frames:10 mem:$LIVESV,1 frames:300 mem:$LIVESV,1 mem:$DEAD,1 \
+      poke:$LIVESV,01 poke:$(sym invuln),00 poke:$DEAD,01 poke:$DEADT,05 frames:30 mem:$LIVESV,1 mem:$GO,1)
+l0=$(echo "$out" | memval $LIVESV 1); l1=$(echo "$out" | memval $LIVESV 2); l2=$(echo "$out" | memval $LIVESV 3)
+l3=$(echo "$out" | memval $LIVESV 4); go=$(echo "$out" | memval $GO 1)
+check "ships: $l0, still $l1 while the ship is lost, $l2 once the next appears; last one lost: $l3, game over $go" "[ $l0 -eq 3 ] && [ $l1 -eq 3 ] && [ $l2 -eq 2 ] && [ $l3 -eq 0 ] && [ $go -eq 1 ]"
+
 # 3. A won area (waves cleared, boss defeated) goes through salute, warp,
 #    map and arrival to the next area, back in play mode.
 n=$(( 0x$SHOTS_END - 0x$ALIENS ))
