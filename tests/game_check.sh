@@ -240,6 +240,22 @@ over=$(run dbgport:BE00 frames:30 'type: ' frames:250 "type:$mv" frames:7200 | g
        awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "frames over budget, sweeping with fire held: ${over}% (limit 2%)" "awk 'BEGIN{exit !($over <= 2.0)}'"
 
+# 5b. The fortress fight stays within budget too (the busiest boss: one
+#     escort at a time), sweeping under it; and its patrolling envoys never
+#     enter the hull's box.
+mvf=""; for i in $(seq 1 25); do mvf="$mvf A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
+k90=""; for i in $(seq 1 90); do k90="$k90 frames:20 poke:$IV,F0"; done
+over=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 frames:500 \
+       dbgport:BE00 "type:$mvf" $k90 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
+       awk '$1>14700 && $1<100000 {o++} {n++} END{printf "%.1f", 100*o/n}')
+check "the fortress fight: frames over budget ${over}% (limit 8%)" "awk 'BEGIN{exit !($over <= 8.0)}'"
+E1=$(sym env1)
+s=""; for i in $(seq 1 100); do s="$s frames:3 mem:$BOSS,1 mem:$E1,1 mem:$E2,1 poke:$IV,F0"; done
+ov=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 $keep frames:200 $s | \
+     grep '^mem' | paste - - - | awk '{b=strtonum("0x"$3); l=strtonum("0x"$6); r=strtonum("0x"$9); if(l+10>b+1 || r<b+35) o++; if(l<mn||!mn) mn=l; if(r>mx) mx=r} END{printf "%d %d %d", o+0, mn, mx}')
+set -- $ov
+check "the fortress's envoys patrol beside it, never into it (overlaps $1; left x from $2, right x to $3)" "[ $1 -eq 0 ] && [ $2 -lt 34 ] && [ $3 -gt 84 ]"
+
 echo "----"
 echo "$pass passed, $fail failed"
 [ $fail -eq 0 ]

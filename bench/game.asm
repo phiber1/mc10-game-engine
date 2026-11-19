@@ -33,6 +33,7 @@ SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
 WAVE_GAP        equ     90              ; frames between waves
 MAX_ALIVE       equ     8               ; live aliens on screen at most
+FORT_ALIVE      equ     1               ; ... in the fortress fight (it's busy)
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
@@ -76,7 +77,7 @@ ENV_DXR         equ     boss1_W+2       ; ... and right of it
 BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
 BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
 ENV_FIRE        equ     16              ; frames between envoy bombs
-ENV_PATROL      equ     8               ; a fortress's envoys patrol +/-8 px
+ENV_PATROL      equ     12              ; a fortress's envoys patrol 12 px out
 ENV_PATROL_V    equ     $0080           ; ... at half a pixel a frame
 NCORE           equ     3               ; cores per boss at most
 CS_SHUT         equ     0               ; a core: shut (shots ping off) ...
@@ -173,6 +174,8 @@ boss_xmin       rmb     1               ; the hull's sway range
 boss_xmax       rmb     1
 boss_edy        rmb     1               ; this boss: the envoys' row offset
 ovl_cur         rmb     1               ; the boss overlay in memory (0: none)
+alive_max       rmb     1               ; aliens flying at most (MAX_ALIVE,
+                                        ; or fewer in a boss fight: BT_ALIVE)
 ovl_pb          rmb     PB_SIZE         ; the MCX32-SD BIOS's parameter block
 ld_t            rmb     1               ; frames the last boss load took
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
@@ -361,8 +364,8 @@ wave_logic:
                 bne     wl_done
                 ldaa    wv_left
                 beq     wl_next         ; all launched: wait for the next wave
-                ldaa    alive           ; at most MAX_ALIVE flying at once:
-                cmpa    #MAX_ALIVE      ; the rest wait their turn (the area's
+                ldaa    alive           ; at most alive_max flying at once:
+                cmpa    alive_max       ; the rest wait their turn (the area's
                 bcc     wl_wait         ; tally is the same)
                 ldx     #aliens         ; launch one into a free slot
 wave_logic_b1:  ldd     O_SPR,x
@@ -1137,6 +1140,8 @@ area_begin:                             ; start the waves of area `area`
                 staa    wv_timer
                 clr     area_done
                 clr     wv_index
+                ldaa    #MAX_ALIVE
+                staa    alive_max
                 rts
 
 ; The area is won when all its waves are launched and every alien is gone
@@ -1210,6 +1215,8 @@ boss_start:
                 staa    boss_y
                 ldaa    BT_STILL,x
                 staa    boss_still
+                ldaa    BT_ALIVE,x      ; escorts flying at once
+                staa    alive_max
                 ldd     BT_ESC,x
                 std     wv_start
                 ldaa    BT_X,x
@@ -1379,10 +1386,10 @@ bl_core:
                 ldd     env_ofs
                 addd    env_v
                 std     env_ofs
-                cmpa    #ENV_PATROL     ; past either end: turn back
-                bge     bl_core_f2
-                cmpa    #-ENV_PATROL
-                bge     bl_core_f1
+                cmpa    #ENV_PATROL     ; past either end (0: beside the
+                bge     bl_core_f2      ; hull, ENV_PATROL out): turn back
+                tsta
+                bpl     bl_core_f1
 bl_core_f2:     ldd     #0
                 subd    env_v
                 std     env_v
@@ -1535,7 +1542,12 @@ ba_l:           ldd     ba_xy
                 suba    #ENV_DXL
                 addb    boss_edy
                 bsr     ba_place
-                bsr     ba_patrol
+                ldd     O_X,x           ; the left one patrols leftwards
+                subd    env_ofs         ; (out, never into the hull)
+                std     O_X,x
+                ldd     O_DX,x
+                subd    env_v
+                std     O_DX,x
 ba_env2:        ldx     #env2
                 ldd     O_SPR,x
                 beq     ba_done
@@ -1546,8 +1558,8 @@ ba_r:           ldd     ba_xy
                 adda    boss_edxr
                 addb    boss_edy
                 bsr     ba_place
-ba_patrol:                              ; X = an envoy: plus the patrol
-                ldd     O_X,x           ; (a fortress's; 0 for the others)
+ba_patrol:                              ; the right one rightwards (a
+                ldd     O_X,x           ; fortress's patrol; 0 for the others)
                 addd    env_ofs
                 std     O_X,x
                 ldd     O_DX,x
@@ -1582,19 +1594,10 @@ env_bomb:
                 tst     env_side
                 beq     eb_try
                 ldx     #env2
-eb_try:         ldd     AN_PTR,x        ; that one gone?  The other, then
-                bne     eb_other
-                ldd     O_SPR,x
-                bne     eb_fire
-eb_other:       cpx     #env1
-                bne     eb_o1
-                ldx     #env2
-                bra     eb_o2
-eb_o1:          ldx     #env1
-eb_o2:          ldd     AN_PTR,x
-                bne     eb_done
-                ldd     O_SPR,x
-                beq     eb_done
+eb_try:         ldd     AN_PTR,x        ; that one gone?  Then no bomb this
+                bne     eb_done         ; turn: the survivor keeps its own
+                ldd     O_SPR,x         ; pace (taking its partner's turns
+                beq     eb_done         ; too, it was nearly unbeatable)
 eb_fire:        ldaa    O_X,x
                 adda    #envoy_PADX+3-bomb_PADX
                 ldab    O_Y,x
@@ -2721,8 +2724,8 @@ areas:          fdb     area1, area2, area3, area4
 ; The bosses, one row per area: envoys, envoy hits, escort waves, the
 ; overlay with its hull and envoy sprites (BOSSn.BIN), core list, cannon list, the envoys' top row in the hull,
 ; the hull's x (fixed for a fortress), the row it stops at, whether it
-; stays put (1) or sways (0), and its box width and height (with the
-; halo).  Core lists: a count, then CORE column, row (of its 4x4
+; stays put (1) or sways (0), its box width and height (with the halo),
+; and how many escorts may fly at once.  Core lists: a count, then CORE column, row (of its 4x4
 ; opening's top left), stage, hits.  Cannon lists: a count, then CANNON
 ; column, row (where the bomb appears).  Columns and rows are in the art.
 BT_ENV          equ     0
@@ -2737,13 +2740,14 @@ BT_STOP         equ     11
 BT_STILL        equ     12
 BT_W            equ     13
 BT_H            equ     14
-BT_SIZE         equ     15
-BOSSROW         macro   env,ehp,esc,ovl,cores,cans,erow,bx,stop,still,bw,bh
+BT_ALIVE        equ     15
+BT_SIZE         equ     16
+BOSSROW         macro   env,ehp,esc,ovl,cores,cans,erow,bx,stop,still,bw,bh,amax
                 fcb     env, ehp
                 fdb     esc
                 fcb     ovl
                 fdb     cores, cans
-                fcb     erow, bx, stop, still, bw, bh
+                fcb     erow, bx, stop, still, bw, bh, amax
                 endm
 CORE            macro   col,row,stage,hits
                 fcb     boss1_PADX+col-core_PADX, boss1_PADY+row-core_PADY, stage, hits
@@ -2752,10 +2756,10 @@ CANNON          macro   col,row
                 fcb     boss1_PADX+col-bomb_PADX, boss1_PADY+row-bomb_PADY
                 endm
 BOSS4_X         equ     ((128-boss4_W)/2)&$FC|2 ; on boss4's one shift (2)
-boss_tab:       BOSSROW 0, 0, esc1, 1, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H
-                BOSSROW 2, 4, esc2, 2, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H
-                BOSSROW 2, 6, esc3, 3, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H
-                BOSSROW 2, 8, esc4, 4, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H
+boss_tab:       BOSSROW 0, 0, esc1, 1, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H, MAX_ALIVE
+                BOSSROW 2, 4, esc2, 2, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H, MAX_ALIVE
+                BOSSROW 2, 6, esc3, 3, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H, MAX_ALIVE
+                BOSSROW 2, 6, esc4, 4, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H, FORT_ALIVE
 cores1:         fcb     1
                 CORE    10, 8, 0, 8
 cores2:         fcb     1

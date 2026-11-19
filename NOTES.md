@@ -703,6 +703,17 @@ blue.  `bench/waves.asm` converted:
     worked).  A still boss's envoys now patrol +/-ENV_PATROL (8) px at
     ENV_PATROL_V (env_ofs/env_v, added in ba_patrol; started on arrival);
     envoy4 is back to four shifts (overlay 4: 1453 bytes).
+* **Fortress fight slowdown (owner's play-through, 2026-11-18).**  31%
+  of frames over budget sweeping under it: the fortress alone (hull
+  ~1040 cycles a frame, three cores, two patrolling envoys, four cannons)
+  takes ~11K of the 14.9K cycles, and each escort ~700 more.  Escorts
+  flying at once are now per boss (alive_max, BT_ALIVE; MAX_ALIVE 8 for
+  bosses 1-3, FORT_ALIVE 1 for the fortress): 4-6% over (check 5b).
+  The envoys patrol outwards only, mirrored (0..ENV_PATROL 12 px out:
+  they overlapped the hull before); a surviving envoy keeps its own
+  pace (it used to take its partner's turns: every boss); the fortress's
+  envoys take 6 hits.  Profiling note: DBGA markers clobber A, so put
+  them only where A is dead.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
