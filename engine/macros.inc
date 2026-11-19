@@ -95,6 +95,6 @@ LOW_CHECK       macro
                 endm
 CODE_CHECK      macro
                 if      * > CODE_END
-                error   "the main segment ($6000-$ADFF) is full"
+                error   "the main segment ($6000-$ADFF) is full: it ends at \{*}"
                 endif
                 endm

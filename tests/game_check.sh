@@ -141,6 +141,34 @@ check "both envoys destroyed (left: $e1)" "[ $e1 -eq 0 ]"
 bs3=$(echo "$out" | memval $BS 1)
 check "then the open core is destroyed (boss state $bs3: dying, defeated or won)" "[ $bs3 -ge 3 ] || [ $bs3 -eq 0 ]"
 
+# 4d. Area 4's fortress: it descends and stays put; its three cores are
+#     shut while the envoys fly; with the envoys down the two side cores
+#     open but the centre stays shut; with both side cores destroyed the
+#     centre opens, and destroying it ends the boss.  (Fortress x 46:
+#     ship x 32/82 under the envoys, 50/68 under the side cores, 59 under
+#     the centre.)
+CS=$(sym core_s)
+keep3="$keep $keep $keep"
+out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 $keep $keep frames:200 \
+      mem:$BOSS,1 mem:$CS,3 \
+      poke:$SHIP,3B "type:$sp" $keep3 mem:$HP,3 \
+      poke:$SHIP,20 "type:$sp" $keep3 poke:$SHIP,20 "type:$sp" $keep3 \
+      poke:$SHIP,52 "type:$sp" $keep3 poke:$SHIP,52 "type:$sp" $keep3 mem:$EL,1 mem:$CS,3 \
+      poke:$SHIP,3B "type:$sp" $keep3 mem:$HP,3 \
+      poke:$SHIP,32 "type:$sp" $keep3 poke:$SHIP,44 "type:$sp" $keep3 mem:$CS,3 mem:$BOSS,1 \
+      poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 mem:$BS,1 mem:$AREA,1)
+bx0=$(echo "$out" | memval $BOSS 1); bx1=$(echo "$out" | memval $BOSS 2)
+cs0=$(echo "$out" | grep "^mem $CS" | sed -n 1p | cut -d: -f2 | tr -d ' ')
+hp0=$(echo "$out" | grep "^mem $HP" | sed -n 1p | cut -d: -f2 | tr -d ' ')
+el=$(echo "$out" | memval $EL 1)
+cs1=$(echo "$out" | grep "^mem $CS" | sed -n 2p | cut -d: -f2 | tr -d ' ')
+hp1=$(echo "$out" | grep "^mem $HP" | sed -n 2p | cut -d: -f2 | tr -d ' ')
+cs2=$(echo "$out" | grep "^mem $CS" | sed -n 3p | cut -d: -f2 | tr -d ' ')
+bs4=$(echo "$out" | memval $BS 1)
+check "the fortress stays put (x $bx0, later $bx1) with its cores shut (states $cs0, hits $hp0)" "[ $bx0 -eq 46 ] && [ $bx1 -eq 46 ] && [ $cs0 = 000000 ] && [ $hp0 = 06060E ]"
+check "envoys down: the side cores open, the centre stays shut and unhurt (envoys $el, states $cs1, hits $hp1)" "[ $el -eq 0 ] && [ $cs1 = 010100 ] && [ \$(echo $hp1 | cut -c5-6) = 0E ]"
+check "side cores destroyed: the centre opens (states $cs2), and destroying it ends the boss (state $bs4)" "[ $cs2 = 020201 ] && { [ $bs4 -ge 3 ] || [ $bs4 -eq 0 ]; }"
+
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.
 #     (The bug: area 1's first wave dropped bombs at fixed points of its

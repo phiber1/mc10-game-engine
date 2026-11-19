@@ -632,6 +632,22 @@ blue.  `bench/waves.asm` converted:
   several cores/channels).  Memory after: low ends $1EE5 (~280 bytes
   free), main $A8A8 (~1.4K free): boss 4 will need room (candidates:
   moving tables or code to low/main, fewer shifts for slow parts).
+* **Boss 4, the fortress (first draft by Claude, 2026-11-18; the owner
+  may rework the art).**  sprites/boss4.spr: 34x18 art (36x20 box), a
+  battlement with a spire and antennae, three pods with cores, four
+  cannons; compiled for shift 2 only (it descends, then never moves
+  across: x 46); envoy4 (a spiked mine drone) is shift 0 only, as the
+  envoys don't move either (x 34 and 84).  Bosses are now data: boss_tab
+  rows (BOSSROW, BT_SIZE 18) give envoys, escorts, hull, envoy, a core
+  list (CORE column, row, stage, hits; up to NCORE = 3 core objects), a
+  cannon list (CANNON column, row; fired in turn), envoy row, x, stop
+  row, still/sway, box size.  Core stages: 0 opens when the envoys are
+  gone, 1 when every stage 0 core is destroyed; a destroyed core
+  explodes (the last one ends the boss as before).  Fortress: side cores
+  6 hits each, centre 14.  make check 4d.  Memory is now full: main ends
+  $ADA8 (87 bytes free), low $1FED (18 free); the area wave lists moved
+  to the low segment to make room.  Next: free memory (see the options
+  discussed with the owner) before the title and colour screens.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

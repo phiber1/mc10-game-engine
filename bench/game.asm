@@ -74,9 +74,10 @@ ENV_DXR         equ     boss1_W+2       ; ... and right of it
 BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
 BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
 ENV_FIRE        equ     16              ; frames between envoy bombs
-CORE_DX         equ     boss1_PADX+10-core_PADX ; the core's box in the boss's
-                                        ; opening (columns 10-13 in every hull)
-CANNON_Y        equ     boss1_PADY+16-bomb_PADY ; bombs from under the hull
+NCORE           equ     3               ; cores per boss at most
+CS_SHUT         equ     0               ; a core: shut (shots ping off) ...
+CS_OPEN         equ     1               ; ... open (shots hurt it) ...
+CS_DEAD         equ     2               ; ... destroyed
 BOSS_FIRE       equ     22              ; frames between cannon shots
 DIE_TIME        equ     120             ; frames of explosions
 SALUTE_TIME     equ     110
@@ -137,10 +138,26 @@ hop_rel         rmb     1               ; the waiting ones may come back
 ba_xy           rmb     2               ; boss_attach scratch
 ba_dx           rmb     2
 ba_dy           rmb     2
-boss_hp         rmb     1               ; core hits left
+boss_hp         rmb     NCORE           ; hits left, per core; then per
+core_fl         rmb     NCORE           ; core (these six in this order):
+core_s          rmb     NCORE           ; frames it stays white, CS_ state,
+core_st         rmb     NCORE           ; stage (0: opens when the envoys
+core_dx         rmb     NCORE           ; are gone, 1: when the stage 0
+core_dy         rmb     NCORE           ; cores are), offset in the hull
+ncores          rmb     1               ; this boss's cores
+ci              rmb     1               ; core loops: the index
+os_st           rmb     1               ; open_stage / cores_alive scratch
+os_i            rmb     1
+os_n            rmb     1
+bs_obj          rmb     2               ; boss_shot: the core tested
+boss_can        rmb     2               ; this boss's cannon list
+boss_ci         rmb     1               ; the cannon that fired last (1-n)
+boss_w          rmb     1               ; the hull's visible width
+boss_h          rmb     1               ; ... its box height
+boss_y          rmb     1               ; ... where it stops descending
+boss_still      rmb     1               ; nonzero: it never sways
+boss_edxr       rmb     1               ; ... its right envoy's x offset
 boss_t          rmb     1               ; boss timer (bombs, dying)
-core_flash      rmb     1               ; frames the core stays white
-boss_side       rmb     1               ; which cannon fires next
 wv_start        rmb     2               ; the escort list (it loops)
 env_left        rmb     1               ; envoys still flying (shield up)
 env_hp          rmb     2               ; hits left: left envoy, right envoy
@@ -148,10 +165,7 @@ env_t           rmb     1               ; envoy bomb timer
 env_side        rmb     1               ; which envoy bombs next
 boss_xmin       rmb     1               ; the hull's sway range
 boss_xmax       rmb     1
-boss_cdy        rmb     1               ; this boss: the core's row offset
-boss_edy        rmb     1               ; ... the envoys' row offset
-boss_cx         rmb     1               ; ... the left cannon's x offset
-boss_cgap       rmb     1               ; ... and the right one's, from it
+boss_edy        rmb     1               ; this boss: the envoys' row offset
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
 sr_bsp          rmb     2
@@ -1135,10 +1149,42 @@ vc_done:        rts
 boss_start:
                 ldaa    #BS_ENTER
                 staa    boss_state
+                ldab    area            ; this area's boss (boss_tab)
+                ldaa    #BT_SIZE
+                mul
+                addd    #boss_tab
+                std     bm_xy
+                ldx     bm_xy
+                ldaa    BT_ENV,x
+                staa    env_left
+                ldaa    BT_EHP,x
+                staa    env_hp
+                staa    env_hp+1
+                ldd     BT_HULL,x
+                std     boss+O_SPR
+                ldd     BT_CANS,x
+                std     boss_can
+                clr     boss_ci
+                ldaa    BT_EDY,x
+                staa    boss_edy
+                ldaa    BT_W,x          ; box width: the right envoy beside
+                adda    #2              ; it, and the visible width
+                staa    boss_edxr
+                suba    #4
+                staa    boss_w
+                ldaa    BT_H,x
+                staa    boss_h
+                ldaa    BT_STOP,x
+                staa    boss_y
+                ldaa    BT_STILL,x
+                staa    boss_still
+                ldd     BT_ESC,x
+                std     wv_start
+                ldaa    BT_X,x
                 ldx     #boss
-                ldaa    #(128-boss1_W)/2
                 staa    O_X,x
-                ldaa    #256-boss1_H    ; just above the top, hidden
+                ldaa    boss_h          ; just above the top, hidden
+                nega
                 staa    O_Y,x
                 clr     O_XF,x
                 clr     O_YF,x
@@ -1146,42 +1192,13 @@ boss_start:
                 std     O_DX,x
                 ldd     #BOSS_DESCEND
                 std     O_DY,x
-                clr     core_flash
-                ldab    area            ; this area's boss: core hits, envoys,
-                ldaa    #BT_SIZE        ; envoy hits, escorts, hull, envoy
-                mul                     ; sprite, offsets
-                addd    #boss_tab
-                std     bm_xy
-                ldx     bm_xy
-                ldd     BT_HULL,x
-                std     boss+O_SPR
-                ldd     BT_ENVOY,x
-                std     ba_dx           ; (scratch until boss_attach)
-                ldaa    BT_CDY,x
-                staa    boss_cdy
-                ldaa    BT_EDY,x
-                staa    boss_edy
-                ldaa    BT_CX,x
-                staa    boss_cx
-                ldaa    BT_CGAP,x
-                staa    boss_cgap
-                ldaa    0,x
-                staa    boss_hp
-                ldaa    1,x
-                staa    env_left
-                ldaa    2,x
-                staa    env_hp
-                staa    env_hp+1
-                ldx     3,x
-                stx     wv_start
                 ldaa    #BOSS_XMIN      ; the sway range
                 ldab    #BOSS_XMAX
                 tst     env_left
                 beq     bst_noenv
-                ldaa    #BOSS_EXMIN
-                ldab    #BOSS_EXMAX
-                ldx     #env1           ; the envoys
-                ldd     ba_dx
+                ldx     bm_xy           ; the envoys
+                ldd     BT_ENVOY,x
+                ldx     #env1
                 std     O_SPR,x
                 ldx     #env2
                 std     O_SPR,x
@@ -1189,12 +1206,58 @@ boss_start:
                 ldab    #BOSS_EXMAX
 bst_noenv:      staa    boss_xmin
                 stab    boss_xmax
-                ldx     #core           ; the core: shut while envoys fly
-                ldd     #core_dsc
+                ldx     bm_xy           ; the cores: a count, then column,
+                ldx     BT_CORES,x      ; row, stage and hits each
+                stx     ba_xy           ; (scratch until boss_attach)
+                ldaa    0,x
+                staa    ncores
+                clr     ci
+bst_core:       ldaa    ci
+                cmpa    ncores
+                bcc     bst_free
+                ldx     ba_xy
+                asla
+                asla
+                tab
+                abx                     ; X = its entry - 1
+                ldd     1,x             ; offsets
+                std     bm_dx           ; (scratch)
+                ldd     3,x             ; stage, hits
+                ldx     #boss_hp
+                pshb
+                ldab    ci
+                abx
+                pulb
+                stab    0,x             ; hits
+                staa    3*NCORE,x       ; stage
+                clr     NCORE,x         ; no flash
+                ldab    #CS_OPEN        ; open from the start: stage 0, no
+                tsta                    ; envoys
+                bne     bst_shut
                 tst     env_left
-                beq     bst_open
-                ldd     #coreshut_dsc
-bst_open:       std     O_SPR,x
+                beq     bst_st
+bst_shut:       ldab    #CS_SHUT
+bst_st:         stab    2*NCORE,x
+                ldd     bm_dx
+                staa    4*NCORE,x
+                stab    5*NCORE,x
+                ldaa    ci
+                jsr     core_look
+                bra     bst_cnext
+bst_free:       ldx     #core_s         ; no such core: free its object
+                ldab    ci
+                abx
+                ldaa    #CS_DEAD
+                staa    0,x
+                ldaa    ci
+                jsr     core_obj
+                ldd     #0
+                std     O_SPR,x
+                std     AN_PTR,x
+bst_cnext:      inc     ci
+                ldaa    ci
+                cmpa    #NCORE
+                bne     bst_core
                 jsr     boss_attach
                 ldaa    #ENV_FIRE
                 staa    env_t
@@ -1229,14 +1292,16 @@ boss_logic_f1:  ldx     #boss
                 cmpa    #BS_ENTER
                 bne     bl_fight
                 ldaa    O_Y,x           ; descending: arrived?
-                cmpa    #BOSS_Y
+                cmpa    boss_y
                 bcs     bl_core         ; (still above: 224-255 counts as high)
                 cmpa    #192
                 bcc     bl_core
                 ldd     #0
                 std     O_DY,x
+                tst     boss_still      ; (a fortress stays where it is)
+                bne     bl_arr
                 ldd     #BOSS_SPEED
-                std     O_DX,x
+bl_arr:         std     O_DX,x
                 ldaa    #BS_FIGHT
                 staa    boss_state
                 bra     bl_core
@@ -1254,26 +1319,122 @@ bl_fight_f2:    dec     boss_t          ; the cannons, in turn
                 bne     bl_core
                 ldaa    #BOSS_FIRE
                 staa    boss_t
-                com     boss_side
-                ldaa    O_X,x
-                adda    boss_cx
-                tst     boss_side
-                beq     bl_fight_f3
-                adda    boss_cgap
-bl_fight_f3:    ldab    O_Y,x
-                addb    #CANNON_Y
+                ldx     boss_can        ; the next cannon in the list (a
+                ldab    boss_ci         ; count, then x and y offsets each)
+                incb
+                cmpb    0,x
+                bls     bl_fight_f3
+                ldab    #1
+bl_fight_f3:    stab    boss_ci
+                aslb
+                abx
+                dex                     ; X = its entry
+                ldd     0,x
+                ldx     #boss
+                adda    O_X,x
+                addb    O_Y,x
                 jsr     bomb_at
 bl_core:
                 jsr     env_bomb
                 jsr     boss_attach
-                ldx     #core
-                ldaa    core_flash      ; white for a moment after a hit
-                beq     bl_r
-                dec     core_flash
-                bne     bl_r
-                ldd     #core_dsc
-                std     O_SPR,x
+                clr     ci              ; a hit core is white for a moment
+bl_flash:       ldx     #core_fl
+                ldab    ci
+                abx
+                tst     0,x
+                beq     bl_flash_f1
+                dec     0,x
+                bne     bl_flash_f1
+                ldaa    ci
+                jsr     core_look
+bl_flash_f1:    inc     ci
+                ldaa    ci
+                cmpa    ncores
+                bcs     bl_flash
 bl_r:           rts
+
+; A = a core's index: X = its object.  Uses A, B.
+core_obj:
+                ldab    #OBJ_SIZE
+                mul
+                addd    #core
+                pshb
+                psha
+                pulx
+                rts
+
+; A = a core's index: show it shut or open, as its state says.  Uses A,
+; B, X.
+core_look:
+                psha
+                ldx     #core_s
+                tab
+                abx
+                ldab    0,x
+                pula
+                pshb
+                bsr     core_obj
+                pulb
+                cmpb    #CS_OPEN
+                beq     core_look_f1
+                ldd     #coreshut_dsc
+                bra     core_look_f2
+core_look_f1:   ldd     #core_dsc
+core_look_f2:   std     O_SPR,x
+                rts
+
+; A = a stage: open its shut cores (with a sound if any opened)
+open_stage:
+                staa    os_st
+                clr     os_i
+                clr     os_n
+os_loop:        ldaa    os_i
+                cmpa    ncores
+                bcc     os_done
+                ldx     #core_s
+                tab
+                abx
+                ldaa    0,x
+                cmpa    #CS_SHUT
+                bne     os_next
+                ldaa    NCORE,x         ; its stage (core_st follows core_s)
+                cmpa    os_st
+                bne     os_next
+                ldaa    #CS_OPEN
+                staa    0,x
+                inc     os_n
+                ldaa    os_i
+                jsr     core_look
+os_next:        inc     os_i
+                bra     os_loop
+os_done:        tst     os_n
+                beq     os_r
+                ldx     #fx_open
+                ldaa    #4
+                jmp     snd_play
+os_r:           rts
+
+; A = a stage ($FF: any): B = how many of its cores are left
+cores_alive:
+                staa    os_st
+                clrb
+                ldx     #core_s
+                ldaa    ncores
+                staa    os_i
+ca2_loop:       tst     os_i
+                beq     ca2_done
+                ldaa    0,x
+                cmpa    #CS_DEAD
+                beq     ca2_next
+                ldaa    os_st
+                bmi     ca2_yes
+                cmpa    NCORE,x
+                bne     ca2_next
+ca2_yes:        incb
+ca2_next:       inx
+                dec     os_i
+                bra     ca2_loop
+ca2_done:       rts
 
 ; The core and the flying envoys ride with the hull: placed relative to
 ; it, with its velocity.  Exploding envoys stay where they died and play
@@ -1287,11 +1448,29 @@ boss_attach:
                 ldaa    O_X,x
                 ldab    O_Y,x
                 std     ba_xy
-                adda    #CORE_DX
-                addb    boss_cdy
-                ldx     #core
-                bsr     ba_place
-                ldx     #env1
+                clr     ci              ; the cores (exploding ones play out
+ba_core:        ldaa    ci              ; their explosion where they are)
+                cmpa    ncores
+                bcc     ba_cored
+                jsr     core_obj
+                ldd     O_SPR,x
+                beq     ba_cnext
+                ldd     AN_PTR,x
+                beq     ba_cplace
+                jsr     obj_anim_step
+                bra     ba_cnext
+ba_cplace:      pshx
+                ldx     #core_dx
+                ldab    ci
+                abx
+                ldd     ba_xy
+                adda    0,x
+                addb    NCORE,x         ; (core_dy follows core_dx)
+                pulx
+                jsr     ba_place
+ba_cnext:       inc     ci
+                bra     ba_core
+ba_cored:       ldx     #env1
                 ldd     O_SPR,x
                 beq     ba_env2
                 ldd     AN_PTR,x
@@ -1309,7 +1488,7 @@ ba_env2:        ldx     #env2
                 beq     ba_r
                 jmp     obj_anim_step
 ba_r:           ldd     ba_xy
-                adda    #ENV_DXR
+                adda    boss_edxr
                 addb    boss_edy
                 ; fall through
 ba_place:                               ; X = object, A, B = x, y; hull's speed
@@ -1358,46 +1537,67 @@ eb_fire:        ldaa    O_X,x
 eb_done:        rts
 
 ; a shot (ht_a) against the boss: carry set if it hit anything
+bs_miss0:       clc
+                rts
 boss_shot:
                 ldaa    boss_state
                 cmpa    #BS_FIGHT
-                bne     bs_miss
+                bne     bs_miss0
                 ldx     ht_a            ; quick reject: the shot below the boss
                 ldaa    O_Y,x
                 ldx     #boss
                 suba    O_Y,x
-                cmpa    #boss1_H
-                bcc     bs_miss
+                cmpa    boss_h
+                bcc     bs_miss0
                 ldx     #env1           ; the envoys
                 jsr     env_test
                 bcs     bs_hit
                 ldx     #env2
                 jsr     env_test
                 bcs     bs_hit
-                ldx     ht_a            ; in the core's column?  (The quick
-                ldaa    O_X,x           ; reject above already put the shot
-                ldx     #core           ; in the boss's rows, so x decides.)
+                clr     ci              ; in a core's column?  (The quick
+bs_cloop:       ldaa    ci              ; reject above already put the shot
+                cmpa    ncores          ; in the boss's rows, so x decides.)
+                bcc     bs_hull
+                ldx     #core_s
+                tab
+                abx
+                ldaa    0,x
+                cmpa    #CS_DEAD        ; (a destroyed core's channel just
+                beq     bs_cnext        ; leads to the hull)
+                ldaa    ci
+                jsr     core_obj
+                stx     bs_obj
+                ldx     ht_a
+                ldaa    O_X,x
+                ldx     bs_obj
                 suba    O_X,x
                 adda    #shot_PADX-core_PADX
-                cmpa    #4              ; (the core is 4 pixels wide)
-                bcc     bs_hull
+                cmpa    #4              ; (a core is 4 pixels wide)
+                bcc     bs_cnext
                 ldx     ht_a            ; up the channel: has it reached the
                 ldaa    O_Y,x           ; core's bottom row yet?
                 adda    #shot_PADY
-                ldx     #core
+                ldx     bs_obj
                 suba    O_Y,x
                 suba    #core_PADY+4
                 bcc     bs_miss         ; not yet: it flies on
-                tst     env_left        ; shut: it pings like the hull
+                ldx     #core_s
+                ldab    ci
+                abx
+                ldaa    0,x
+                cmpa    #CS_OPEN        ; shut: it pings like the hull
                 bne     bs_ping
-                bra     bs_core
+                jmp     bs_core
+bs_cnext:       inc     ci
+                bra     bs_cloop
 bs_hull:        ldx     ht_a            ; the hull: is the shot within its
                 ldaa    O_X,x           ; width?
                 adda    #shot_PADX
                 ldx     #boss
                 suba    O_X,x
                 suba    #boss1_PADX
-                cmpa    #24             ; (the hull is 24 pixels wide)
+                cmpa    boss_w
                 bcc     bs_miss
 bs_ping:        ldx     #fx_ping        ; the hull: the shot bounces off
                 ldaa    #1
@@ -1406,19 +1606,48 @@ bs_hit:         sec
                 rts
 bs_miss:        clc
                 rts
-bs_core:
+bs_core:                                ; core ci is hit
                 jsr     score_50
-                ldx     #core           ; flash white
+                ldaa    ci              ; flash white
+                jsr     core_obj
                 ldd     #corehit_dsc
                 std     O_SPR,x
+                ldx     #boss_hp
+                ldab    ci
+                abx
                 ldaa    #6
-                staa    core_flash
-                dec     boss_hp
-                beq     boss_die
+                staa    NCORE,x
+                dec     0,x
+                beq     core_down
                 ldx     #fx_clang
                 ldaa    #2
                 jsr     snd_play
                 sec
+                rts
+core_down:                              ; destroyed (X = its boss_hp entry)
+                clr     NCORE,x
+                ldaa    #CS_DEAD
+                staa    2*NCORE,x
+                ldaa    #$FF            ; the last one: the boss is done for
+                jsr     cores_alive
+                tstb
+                bne     cd_more
+                jmp     boss_die
+cd_more:        ldaa    ci              ; otherwise it explodes ...
+                jsr     core_obj
+                ldd     #anim_boom
+                jsr     boom_start
+                jsr     score_500
+                ldx     #fx_boom
+                ldaa    #3
+                jsr     snd_play
+                clra                    ; ... and when stage 0 is gone,
+                jsr     cores_alive     ; stage 1 opens
+                tstb
+                bne     cd_done
+                ldaa    #1
+                jsr     open_stage
+cd_done:        sec
                 rts
 
 ; X = an envoy: if the shot ht_a hits it, take a hit (carry set)
@@ -1462,13 +1691,9 @@ et_down:        ldx     ht_b            ; destroyed: it explodes ...
                 ldaa    #3
                 jsr     snd_play
                 dec     env_left        ; ... and when both are gone the
-                bne     et_hit          ; core opens
-                ldx     #core
-                ldd     #core_dsc
-                std     O_SPR,x
-                ldx     #fx_open
-                ldaa    #4
-                jsr     snd_play
+                bne     et_hit          ; first cores open
+                clra
+                jsr     open_stage
 et_hit:         sec
                 rts
 et_miss:        clc
@@ -1484,9 +1709,16 @@ boss_die:                               ; the core is spent
                 ldd     #0
                 std     O_DX,x
                 std     O_DY,x
-                ldx     #core
+                clra                    ; the cores stop with it
+bdie_core:      psha
+                jsr     core_obj
+                ldd     #0
                 std     O_DX,x
                 std     O_DY,x
+                pula
+                inca
+                cmpa    #NCORE
+                bne     bdie_core
                 ldx     #aliens         ; ... and those flying explode with it
 boss_die_b1:    stx     obj
                 ldd     O_SPR,x
@@ -1509,10 +1741,13 @@ boss_die_f1:    ldx     obj
 
 boss_dying:                             ; explosions all over the hull
                 dec     boss_t
-                beq     bd_gone
-                ldaa    boss_t
+                bne     boss_dying_f0
+                jmp     bd_gone
+boss_dying_f0:  ldaa    boss_t
                 anda    #7
-                bne     bd_r
+                beq     boss_dying_f2
+                rts
+boss_dying_f2:
                 ldx     #aliens         ; a burst in a free slot
 boss_dying_b1:  ldd     O_SPR,x
                 beq     boss_dying_f1
@@ -1523,16 +1758,20 @@ boss_dying_b1:  ldd     O_SPR,x
                 rts
 boss_dying_f1:  stx     obj
                 jsr     rnd             ; somewhere on the hull
-                andb    #15
+                ldaa    boss_w
+                suba    #6
+                mul
                 ldx     #boss
-                addb    O_X,x
-                stab    bm_xy
+                adda    O_X,x
+                staa    bm_xy
                 jsr     rnd
-                andb    #7
+                ldaa    boss_h
+                suba    #10
+                mul
                 ldx     #boss
-                addb    O_Y,x
+                adda    O_Y,x
                 ldx     obj
-                stab    O_Y,x
+                staa    O_Y,x
                 ldaa    bm_xy
                 staa    O_X,x
                 ldd     #0
@@ -1552,11 +1791,19 @@ bd_gone:
                 ldx     #env2
                 std     O_SPR,x
                 std     AN_PTR,x
-                ldx     #core
+                clra
+bdg_core:       psha
+                jsr     core_obj
+                pshx
                 jsr     obj_erase
-                ldx     #core
+                pulx
                 ldd     #0
                 std     O_SPR,x
+                std     AN_PTR,x
+                pula
+                inca
+                cmpa    #NCORE
+                bne     bdg_core
                 ldx     #boss
                 jsr     obj_erase
                 ldx     #boss
@@ -2289,103 +2536,64 @@ pwv_rep:        fcb     P_FLY, 30, 0
 ; area (the map shows 3 rows per wave).  Later areas launch faster.
 areas:          fdb     area1, area2, area3, area4
 ; (Each wave: descriptor, path; count, launch interval, entry x, x step.)
-area1:                                  ; gentle: 6 at a time, then 8
-                fdb     saucer_dsc, path_loopL
-                fcb     6, 14, 30, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     6, 16, 21, 12
-                fdb     orbiter_dsc, path_circle
-                fcb     6, 14, 35, 0
-                fdb     saucer_dsc, path_sweepR
-                fcb     6, 16, 20, 0
-                fdb     dart_dsc, path_zigLR
-                fcb     6, 16, 103, -12
-                fdb     orbiter_dsc, path_circleR
-                fcb     6, 14, 84, 0
-                fdb     orbiter_dsc, path_sweepL
-                fcb     8, 14, 100, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 14, 15, 12
-                fdb     0
-area2:
-                fdb     saucer_dsc, path_loopR
-                fcb     8, 12, 89, 0
-                fdb     dart_dsc, path_zigLR
-                fcb     8, 14, 103, -12
-                fdb     orbiter_dsc, path_circleR
-                fcb     8, 12, 84, 0
-                fdb     saucer_dsc, path_loopL
-                fcb     8, 12, 30, 0
-                fdb     orbiter_dsc, path_circle
-                fcb     8, 12, 35, 0
-                fdb     dart_dsc, path_weave
-                fcb     8, 14, 30, 0
-                fdb     saucer_dsc, path_sweepR
-                fcb     8, 12, 20, 0
-                fdb     orbiter_dsc, path_circleR
-                fcb     8, 11, 84, 0
-                fdb     0
-area3:
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 12, 15, 12
-                fdb     orbiter_dsc, path_circle
-                fcb     8, 10, 35, 0
-                fdb     saucer_dsc, path_loopR
-                fcb     8, 10, 89, 0
-                fdb     dart_dsc, path_zigLR
-                fcb     8, 12, 103, -12
-                fdb     saucer_dsc, path_sweepL
-                fcb     8, 10, 100, 0
-                fdb     orbiter_dsc, path_circleR
-                fcb     8, 10, 84, 0
-                fdb     dart_dsc, path_weave
-                fcb     8, 11, 90, 0
-                fdb     saucer_dsc, path_loopR
-                fcb     8, 9, 89, 0
-                fdb     0
-area4:
-                fdb     orbiter_dsc, path_circleR
-                fcb     8, 9, 84, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 10, 15, 12
-                fdb     saucer_dsc, path_loopL
-                fcb     8, 9, 30, 0
-                fdb     orbiter_dsc, path_circle
-                fcb     8, 9, 35, 0
-                fdb     dart_dsc, path_weave
-                fcb     8, 10, 30, 0
-                fdb     saucer_dsc, path_sweepR
-                fcb     8, 9, 20, 0
-                fdb     orbiter_dsc, path_sweepL
-                fcb     8, 8, 100, 0
-                fdb     dart_dsc, path_zigRL
-                fcb     8, 9, 15, 12
-                fdb     0
-
-; Bosses, per area: core hits, escort wave list (it loops)
-; (core hits, envoys, hits per envoy, escorts)
-; The bosses, one row per area: core hits, envoys, envoy hits, escort
-; waves, hull, envoy sprite, then offsets in the hull (pixels, rows): the
-; core opening's top row, the envoys' top row, the left cannon's column
-; and the right cannon's distance from it.  Every hull is 24x16 with its
-; core opening in columns 10-13.
-BT_HULL         equ     5
-BT_ENVOY        equ     7
-BT_CDY          equ     9
-BT_EDY          equ     10
-BT_CX           equ     11
-BT_CGAP         equ     12
-BT_SIZE         equ     13
-BOSSROW         macro   hp,env,ehp,esc,hull,envoy,crow,erow,ccol,cgap
-                fcb     hp, env, ehp
-                fdb     esc, hull, envoy
-                fcb     boss1_PADY+crow-core_PADY, erow
-                fcb     boss1_PADX+ccol-bomb_PADX, cgap
+; The bosses, one row per area: envoys, envoy hits, escort waves, hull,
+; envoy sprite, core list, cannon list, the envoys' top row in the hull,
+; the hull's x (fixed for a fortress), the row it stops at, whether it
+; stays put (1) or sways (0), and its box width and height (with the
+; halo).  Core lists: a count, then CORE column, row (of its 4x4
+; opening's top left), stage, hits.  Cannon lists: a count, then CANNON
+; column, row (where the bomb appears).  Columns and rows are in the art.
+BT_ENV          equ     0
+BT_EHP          equ     1
+BT_ESC          equ     2
+BT_HULL         equ     4
+BT_ENVOY        equ     6
+BT_CORES        equ     8
+BT_CANS         equ     10
+BT_EDY          equ     12
+BT_X            equ     13
+BT_STOP         equ     14
+BT_STILL        equ     15
+BT_W            equ     16
+BT_H            equ     17
+BT_SIZE         equ     18
+BOSSROW         macro   env,ehp,esc,hull,envoy,cores,cans,erow,bx,stop,still,bw,bh
+                fcb     env, ehp
+                fdb     esc, hull, envoy, cores, cans
+                fcb     erow, bx, stop, still, bw, bh
                 endm
-boss_tab:       BOSSROW 8, 0, 0, esc1, boss1_dsc, envoy_dsc, 8, 6, 4, 14
-                BOSSROW 10, 2, 4, esc2, boss2_dsc, envoy2_dsc, 10, 4, 8, 6
-                BOSSROW 12, 2, 6, esc3, boss3_dsc, envoy3_dsc, 10, 5, 8, 6
-                BOSSROW 14, 2, 8, esc4, boss1_dsc, envoy_dsc, 8, 6, 4, 14
+CORE            macro   col,row,stage,hits
+                fcb     boss1_PADX+col-core_PADX, boss1_PADY+row-core_PADY, stage, hits
+                endm
+CANNON          macro   col,row
+                fcb     boss1_PADX+col-bomb_PADX, boss1_PADY+row-bomb_PADY
+                endm
+BOSS4_X         equ     ((128-boss4_W)/2)&$FC|2 ; on boss4's one shift (2)
+boss_tab:       BOSSROW 0, 0, esc1, boss1_dsc, envoy_dsc, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H
+                BOSSROW 2, 4, esc2, boss2_dsc, envoy2_dsc, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H
+                BOSSROW 2, 6, esc3, boss3_dsc, envoy3_dsc, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H
+                BOSSROW 2, 8, esc4, boss4_dsc, envoy4_dsc, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H
+cores1:         fcb     1
+                CORE    10, 8, 0, 8
+cores2:         fcb     1
+                CORE    10, 10, 0, 10
+cores3:         fcb     1
+                CORE    10, 10, 0, 12
+cores4:         fcb     3               ; the fortress: two side cores, then
+                CORE    6, 13, 0, 6     ; the centre one
+                CORE    24, 13, 0, 6
+                CORE    15, 13, 1, 14
+cans1:          fcb     2
+                CANNON  4, 16
+                CANNON  18, 16
+cans23:         fcb     2
+                CANNON  8, 16
+                CANNON  14, 16
+cans4:          fcb     4
+                CANNON  2, 16
+                CANNON  21, 16
+                CANNON  12, 16
+                CANNON  31, 16
 esc1:           fdb     saucer_dsc, path_circle
                 fcb     4, 20, 35, 0
                 fdb     dart_dsc, path_zigRL
@@ -2459,7 +2667,8 @@ all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
                 fdb     shipw1_dsc, shipw2_dsc, boss1_dsc, core_dsc
                 fdb     corehit_dsc, envoy_dsc, coreshut_dsc
-                fdb     boss2_dsc, envoy2_dsc, boss3_dsc, envoy3_dsc, 0
+                fdb     boss2_dsc, envoy2_dsc, boss3_dsc, envoy3_dsc
+                fdb     boss4_dsc, envoy4_dsc, 0
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -2579,7 +2788,9 @@ star_end:
 ; Objects, in priority order: aliens, bombs, shots, ship
 objs:
 boss:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-core:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+core:           rept    NCORE
+                fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                endm
 env1:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 env2:           fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 aliens:
@@ -2614,6 +2825,7 @@ objs_end:
 #include "colswap.asm"
 #include "game_spr.inc"
 #include "boss3_spr.inc"
+#include "boss4_spr.inc"
                 CODE_CHECK
 
 ; ---------------------------------------------------------------- low
@@ -2622,6 +2834,80 @@ objs_end:
                 org     LOW
 #include "game_lo_spr.inc"
 #include "boss2_spr.inc"
+; the areas' wave lists (data, here for room in the main segment)
+area1:                                  ; gentle: 6 at a time, then 8
+                fdb     saucer_dsc, path_loopL
+                fcb     6, 14, 30, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     6, 16, 21, 12
+                fdb     orbiter_dsc, path_circle
+                fcb     6, 14, 35, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     6, 16, 20, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     6, 16, 103, -12
+                fdb     orbiter_dsc, path_circleR
+                fcb     6, 14, 84, 0
+                fdb     orbiter_dsc, path_sweepL
+                fcb     8, 14, 100, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 14, 15, 12
+                fdb     0
+area2:
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 12, 89, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     8, 14, 103, -12
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 12, 84, 0
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 12, 30, 0
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 12, 35, 0
+                fdb     dart_dsc, path_weave
+                fcb     8, 14, 30, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     8, 12, 20, 0
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 11, 84, 0
+                fdb     0
+area3:
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 12, 15, 12
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 10, 35, 0
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 10, 89, 0
+                fdb     dart_dsc, path_zigLR
+                fcb     8, 12, 103, -12
+                fdb     saucer_dsc, path_sweepL
+                fcb     8, 10, 100, 0
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 10, 84, 0
+                fdb     dart_dsc, path_weave
+                fcb     8, 11, 90, 0
+                fdb     saucer_dsc, path_loopR
+                fcb     8, 9, 89, 0
+                fdb     0
+area4:
+                fdb     orbiter_dsc, path_circleR
+                fcb     8, 9, 84, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 10, 15, 12
+                fdb     saucer_dsc, path_loopL
+                fcb     8, 9, 30, 0
+                fdb     orbiter_dsc, path_circle
+                fcb     8, 9, 35, 0
+                fdb     dart_dsc, path_weave
+                fcb     8, 10, 30, 0
+                fdb     saucer_dsc, path_sweepR
+                fcb     8, 9, 20, 0
+                fdb     orbiter_dsc, path_sweepL
+                fcb     8, 8, 100, 0
+                fdb     dart_dsc, path_zigRL
+                fcb     8, 9, 15, 12
+                fdb     0
+
 #include "sintab.asm"
                 LOW_CHECK
 
@@ -2633,4 +2919,9 @@ objs_end:
 ; every boss hull has boss1's box (the hit tests and placement use it)
                 if      (boss2_W<>boss1_W)||(boss2_H<>boss1_H)||(boss3_W<>boss1_W)||(boss3_H<>boss1_H)
                 error   "boss hulls must all be 24x16 (with their halo, as boss1)"
+                endif
+; boss4 is compiled for shift 2 only, and every hull has a 1-pixel halo
+; (the core and cannon offsets use boss1's padding)
+                if      (boss2_PADX<>1)||(boss3_PADX<>1)||(boss4_PADX<>1)||(boss4_PADY<>1)
+                error   "boss hulls need a 1-pixel halo"
                 endif
