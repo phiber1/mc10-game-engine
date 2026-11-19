@@ -681,6 +681,28 @@ blue.  `bench/waves.asm` converted:
   arrival; found when ovl_cur was cleared).  It now starts at
   224-shipw1_H (an assembly-time check).  Rule: nothing may be drawn
   past row 223 from below (aliens wrap and bombs end before 192).
+* **Fixed, from the owner's two play-throughs (2026-11-18):**
+  * Boss cores/envoys vibrating: boss_attach set their x/y but not the
+    pixel fractions, so a stale fraction (left by an earlier boss's
+    objects) made their steps drift against the hull's: a pixel back and
+    forth every other frame.  ba_place now copies the hull's fractions
+    (make check 4e pokes stale fractions and samples at the loop top).
+  * Ship climbing the map in a long boss fight: the escort waves loop and
+    count on in wv_index; the map caps it at AREA_WAVES (8) (check 4f).
+  * After the fortress, the map showed area 2, garbled text, a mangled
+    score: boss_die explodes every flying alien, and one exploding low
+    while diving drifted past row 223 into BSS ($5C00: col_o/col_b, area,
+    wv_index ...).  Exploding aliens now stop drifting down at
+    192-AL_H (check 4d reads col_o/col_b after the fall).  Same rule as
+    the arrival fix: nothing may be drawn past row 223 from below.
+  * Status bar holes: obj_erase over the band didn't set sm_dirty, so an
+    explosion ending over the bar left a hole until something else
+    crossed it; obj_erase now counts like a drawing (engine/sprman.asm).
+  * Fortress envoys unbeatable: stationary, their bombs fell in one
+    column exactly where the ship had to be to shoot them (one exact x
+    worked).  A still boss's envoys now patrol +/-ENV_PATROL (8) px at
+    ENV_PATROL_V (env_ofs/env_v, added in ba_patrol; started on arrival);
+    envoy4 is back to four shifts (overlay 4: 1453 bytes).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

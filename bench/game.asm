@@ -52,6 +52,7 @@ BANNER_ROW      equ     93
 BAND            equ     7               ; the status bar: rows 0-6, in front of
                                         ; everything
 NAREAS          equ     4
+AREA_WAVES      equ     8               ; waves in each area
 MODE_PLAY       equ     0
 MODE_SALUTE     equ     1               ; the victory salute
 MODE_WARP       equ     2               ; blasting off, up behind the status bar
@@ -75,6 +76,8 @@ ENV_DXR         equ     boss1_W+2       ; ... and right of it
 BOSS_EXMIN      equ     ENV_DXL+2       ; ... and with them (they stay on
 BOSS_EXMAX      equ     128-ENV_DXR-envoy_W-2 ; screen)
 ENV_FIRE        equ     16              ; frames between envoy bombs
+ENV_PATROL      equ     8               ; a fortress's envoys patrol +/-8 px
+ENV_PATROL_V    equ     $0080           ; ... at half a pixel a frame
 NCORE           equ     3               ; cores per boss at most
 CS_SHUT         equ     0               ; a core: shut (shots ping off) ...
 CS_OPEN         equ     1               ; ... open (shots hurt it) ...
@@ -136,6 +139,9 @@ hop_vis         rmb     1               ; hopping aliens on screen (this frame)
 hop_park        rmb     1               ; ... and waiting out of sight
 hop_rel         rmb     1               ; the waiting ones may come back
 ba_xy           rmb     2               ; boss_attach scratch
+ba_f            rmb     2               ; ... the hull's x and y fractions
+env_ofs         rmb     2               ; a fortress's envoys: patrol offset
+env_v           rmb     2               ; ... and speed (8.8, signed)
 ba_dx           rmb     2
 ba_dy           rmb     2
 boss_hp         rmb     NCORE           ; hits left, per core; then per
@@ -464,13 +470,21 @@ al_loop:
                 jmp     al_next
 al_used:        ldd     AN_PTR,x        ; exploding?
                 beq     al_live
-                ldd     O_X,x           ; drift, but not off the sides
+                ldd     O_X,x           ; drift, but not off the sides ...
                 addd    O_DX,x
                 cmpa    #128-AL_W
                 bcs     al_loop_f1
                 ldd     #0
                 std     O_DX,x
-al_loop_f1:     jsr     obj_anim_step   ; next frame; frees the slot at the end
+al_loop_f1:     ldd     O_Y,x           ; ... nor below the screen: past row
+                addd    O_DY,x          ; 223 is BSS, so nothing may be drawn
+                cmpa    #192-AL_H       ; there (an alien exploding low,
+                bcs     al_loop_f2      ; still diving, used to drift in and
+                cmpa    #224            ; overwrite the variables); coming
+                bcc     al_loop_f2      ; in from above is fine
+                ldd     #0
+                std     O_DY,x
+al_loop_f2:     jsr     obj_anim_step   ; next frame; frees the slot at the end
                 jmp     al_next
 al_live:
                 ldaa    F_FLAGS,x       ; waiting out of sight before coming
@@ -1210,6 +1224,9 @@ boss_start:
                 std     O_DX,x
                 ldd     #BOSS_DESCEND
                 std     O_DY,x
+                ldd     #0              ; no envoy patrol (yet)
+                std     env_ofs
+                std     env_v
                 ldaa    #BOSS_XMIN      ; the sway range
                 ldab    #BOSS_XMAX
                 tst     env_left
@@ -1315,9 +1332,13 @@ boss_logic_f1:  ldx     #boss
                 bcc     bl_core
                 ldd     #0
                 std     O_DY,x
-                tst     boss_still      ; (a fortress stays where it is)
-                bne     bl_arr
-                ldd     #BOSS_SPEED
+                tst     boss_still      ; a fortress stays where it is, and
+                beq     bl_sway         ; its envoys patrol beside it (or
+                ldd     #ENV_PATROL_V   ; their bombs fall in one column,
+                std     env_v           ; right where the ship must be to
+                ldd     #0              ; shoot them)
+                bra     bl_arr
+bl_sway:        ldd     #BOSS_SPEED
 bl_arr:         std     O_DX,x
                 ldaa    #BS_FIGHT
                 staa    boss_state
@@ -1352,7 +1373,20 @@ bl_fight_f3:    stab    boss_ci
                 addb    O_Y,x
                 jsr     bomb_at
 bl_core:
-                jsr     env_bomb
+                ldaa    boss_state      ; the envoys' patrol (env_v is 0 but
+                cmpa    #BS_FIGHT       ; for a fortress's)
+                bne     bl_core_f1
+                ldd     env_ofs
+                addd    env_v
+                std     env_ofs
+                cmpa    #ENV_PATROL     ; past either end: turn back
+                bge     bl_core_f2
+                cmpa    #-ENV_PATROL
+                bge     bl_core_f1
+bl_core_f2:     ldd     #0
+                subd    env_v
+                std     env_v
+bl_core_f1:     jsr     env_bomb
                 jsr     boss_attach
                 clr     ci              ; a hit core is white for a moment
 bl_flash:       ldx     #core_fl
@@ -1465,6 +1499,9 @@ boss_attach:
                 ldaa    O_X,x
                 ldab    O_Y,x
                 std     ba_xy
+                ldaa    O_XF,x          ; (with its fractions, or a part's
+                ldab    O_YF,x          ; steps drift against the hull's:
+                std     ba_f            ; it vibrates)
                 clr     ci              ; the cores (exploding ones play out
 ba_core:        ldaa    ci              ; their explosion where they are)
                 cmpa    ncores
@@ -1498,6 +1535,7 @@ ba_l:           ldd     ba_xy
                 suba    #ENV_DXL
                 addb    boss_edy
                 bsr     ba_place
+                bsr     ba_patrol
 ba_env2:        ldx     #env2
                 ldd     O_SPR,x
                 beq     ba_done
@@ -1507,10 +1545,21 @@ ba_env2:        ldx     #env2
 ba_r:           ldd     ba_xy
                 adda    boss_edxr
                 addb    boss_edy
-                ; fall through
-ba_place:                               ; X = object, A, B = x, y; hull's speed
-                staa    O_X,x
+                bsr     ba_place
+ba_patrol:                              ; X = an envoy: plus the patrol
+                ldd     O_X,x           ; (a fortress's; 0 for the others)
+                addd    env_ofs
+                std     O_X,x
+                ldd     O_DX,x
+                addd    env_v
+                std     O_DX,x
+                rts
+ba_place:                               ; X = object, A, B = x, y; the hull's
+                staa    O_X,x           ; fractions and speed
                 stab    O_Y,x
+                ldd     ba_f
+                staa    O_XF,x
+                stab    O_YF,x
                 ldd     ba_dx
                 std     O_DX,x
                 ldd     ba_dy
@@ -2021,8 +2070,11 @@ map_show_b1:    ldaa    col_b
                 ldaa    #MAP_BOTTOM+MAP_SEG
                 suba    mp_t
                 suba    #ship_H-ship_PADY
-                ldab    wv_index        ; 3 rows per wave (up to 10 waves)
-                stab    mp_t
+                ldab    wv_index        ; 3 rows per wave, up to the area's
+                cmpb    #AREA_WAVES     ; 8 (a boss's escort waves count on,
+                bls     map_show_f4     ; but the ship stays at the
+                ldab    #AREA_WAVES     ; checkpoint)
+map_show_f4:    stab    mp_t
                 aslb
                 addb    mp_t
                 stab    mp_t

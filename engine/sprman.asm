@@ -18,7 +18,8 @@
 ;                 object over rows 0..sm_band-1 (or above the top), so a
 ;                 program can redraw a status bar there in front of sprites.
 ; obj_erase       X = object: clear its image at its current position (to
-;                 remove it, or before moving it further than its halo)
+;                 remove it, or before moving it further than its halo).
+;                 Counts in sm_dirty like a drawing over the band.
 ;
 ; A sprite descriptor (spritec makes one for every halo sprite: NAME_dsc):
 ;   fdb NAME_hr     draw table (halo routines; any spritec table works)
@@ -105,7 +106,12 @@ obj_erase:
                 ldx     sm_obj
                 ldaa    O_X,x
                 ldab    O_Y,x
-                ldx     sm_tab
+                cmpb    sm_band         ; erasing over the top band (or from
+                bcs     oe_band         ; above) needs repairing too, even
+                cmpb    #224            ; if nothing is drawn there after
+                bcs     oe_go
+oe_band:        inc     sm_dirty
+oe_go:          ldx     sm_tab
 oe_call:
                 jmp     oe_call         ; patched (tail call)
 +               rts

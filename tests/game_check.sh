@@ -166,6 +166,17 @@ check "both envoys destroyed (left: $e1)" "[ $e1 -eq 0 ]"
 bs3=$(echo "$out" | memval $BS 1)
 check "then the open core is destroyed (boss state $bs3: dying, defeated or won)" "[ $bs3 -ge 3 ] || [ $bs3 -eq 0 ]"
 
+# 4e. A swaying boss's core and envoys move with it without vibrating,
+#     even when their objects hold stale pixel fractions (left by an
+#     earlier boss: they used to jitter a pixel every other frame).
+#     Sampled at the top of the game loop.
+LOOP=$(sym loop); CO=$(sym core); E2=$(sym env2)
+s=""; for i in $(seq 1 120); do s="$s bp:$LOOP mem:$BOSS,1 mem:$CO,1 mem:$E2,1 poke:$IV,F0"; done
+gaps=$(run frames:30 'type: ' frames:300 poke:$AREA,01 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 \
+       poke:$(printf %04X $((0x$CO+1))),80 poke:$(printf %04X $((0x$E2+1))),80 poke:$(printf %04X $((0x$E2+3))),C0 $keep frames:200 $s | \
+       grep '^mem' | paste - - - | awk '{b=strtonum("0x"$3); print strtonum("0x"$6)-b, strtonum("0x"$9)-b}' | sort -u | wc -l)
+check "a swaying boss's core and envoys keep their places (distinct gaps: $gaps)" "[ $gaps -eq 1 ]"
+
 # 4d. Area 4's fortress: it descends and stays put; its three cores are
 #     shut while the envoys fly; with the envoys down the two side cores
 #     open but the centre stays shut; with both side cores destroyed the
@@ -181,7 +192,8 @@ out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AR
       poke:$SHIP,52 "type:$sp" $keep3 poke:$SHIP,52 "type:$sp" $keep3 mem:$EL,1 mem:$CS,3 \
       poke:$SHIP,3B "type:$sp" $keep3 mem:$HP,3 \
       poke:$SHIP,32 "type:$sp" $keep3 poke:$SHIP,44 "type:$sp" $keep3 mem:$CS,3 mem:$BOSS,1 \
-      poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 mem:$BS,1 mem:$AREA,1)
+      poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 mem:$BS,1 mem:$AREA,1 \
+      frames:900 mem:$(sym col_o),2)
 bx0=$(echo "$out" | memval $BOSS 1); bx1=$(echo "$out" | memval $BOSS 2)
 cs0=$(echo "$out" | grep "^mem $CS" | sed -n 1p | cut -d: -f2 | tr -d ' ')
 hp0=$(echo "$out" | grep "^mem $HP" | sed -n 1p | cut -d: -f2 | tr -d ' ')
@@ -193,6 +205,17 @@ bs4=$(echo "$out" | memval $BS 1)
 check "the fortress stays put (x $bx0, later $bx1) with its cores shut (states $cs0, hits $hp0)" "[ $bx0 -eq 46 ] && [ $bx1 -eq 46 ] && [ $cs0 = 000000 ] && [ $hp0 = 06060E ]"
 check "envoys down: the side cores open, the centre stays shut and unhurt (envoys $el, states $cs1, hits $hp1)" "[ $el -eq 0 ] && [ $cs1 = 010100 ] && [ \$(echo $hp1 | cut -c5-6) = 0E ]"
 check "side cores destroyed: the centre opens (states $cs2), and destroying it ends the boss (state $bs4)" "[ $cs2 = 020201 ] && { [ $bs4 -ge 3 ] || [ $bs4 -eq 0 ]; }"
+cols=$(echo "$out" | grep "^mem $(sym col_o)" | cut -d: -f2 | tr -d ' ')
+check "the fortress's fall leaves the variables alone (text colours $cols)" "[ $cols = AA55 ]"
+
+# 4f. In a long boss fight the escort waves count on, but a lost ship's
+#     map shows it at the area's checkpoint, not climbing past it: with
+#     wv_index at 48, the ship on area 1's map stays low (its topmost row
+#     left of the strip).
+DEADV=$(sym dead); DT=$(sym dead_t)
+out=$(run frames:30 'type: ' frames:300 poke:$LIVES,09 poke:$(sym wv_index),30 poke:$DEADV,01 poke:$DT,02 frames:40 mem:4000,6144)
+top=$(echo "$out" | grep '^mem 4000' | cut -d: -f2 | awk '{for(r=40;r<192;r++) if($(r*32+14+1)!="00"){print r; exit}}')
+check "a long boss fight doesn't push the map's ship up (top row ${top:-none})" "[ -n \"$top\" ] && [ $top -ge 130 ]"
 
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.

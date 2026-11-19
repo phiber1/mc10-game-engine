@@ -26,10 +26,9 @@ WOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOW
 .....W....W...W....W...W....W.....
 end
 
-# Boss 4's envoys (draft): spiked mine drones with a dark eye.  The
-# fortress never moves, so neither do they (x 36 and 84, both on shift 0):
-# one shift only
-sprite envoy4 artifact halo 1 1 shift 0
+# Boss 4's envoys (draft): spiked mine drones with a dark eye.  They
+# patrol beside the fortress (all four shifts)
+sprite envoy4 artifact halo 1 1
 ..W..W..
 .WOWWOW.
 WOOBBOOW
