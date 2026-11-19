@@ -226,6 +226,17 @@ out=$(run frames:30 'type: ' frames:300 poke:$LIVES,09 poke:$(sym wv_index),30 p
 top=$(echo "$out" | grep '^mem 4000' | cut -d: -f2 | awk '{for(r=40;r<192;r++) if($(r*32+14+1)!="00"){print r; exit}}')
 check "a long boss fight doesn't push the map's ship up (top row ${top:-none})" "[ -n \"$top\" ] && [ $top -ge 130 ]"
 
+# 4g. Beating the last area's boss (the fortress) starts the finale (song,
+#     fireworks, banners): a bonus of 10000 for every ship left, round 2,
+#     then the warp to area 1 and play.
+SC=$(sym score); RD=$(sym round)
+out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,03 poke:$SC,000000 \
+      poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:400 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
+m5=$(echo "$out" | memval $MODE 1); r1=$(echo "$out" | memval $RD 1); sc=$(echo "$out" | grep "^mem $SC" | cut -d: -f2 | tr -d ' ')
+r2=$(echo "$out" | memval $RD 2); a0=$(echo "$out" | memval $AREA 1); m0=$(echo "$out" | memval $MODE 2)
+check "the fortress's fall: finale (mode $m5), ship bonus (score's top byte $sc for 3 ships), round $r1 -> $r2, then area $a0 in play (mode $m0)" \
+      "[ $m5 -eq 5 ] && [ $sc = 03 ] && [ $r1 -eq 1 ] && [ $r2 -eq 2 ] && [ $a0 -eq 0 ] && [ $m0 -eq 0 ]"
+
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.
 #     (The bug: area 1's first wave dropped bombs at fixed points of its

@@ -714,6 +714,17 @@ blue.  `bench/waves.asm` converted:
   pace (it used to take its partner's turns: every boss); the fortress's
   envoys take 6 hits.  Profiling note: DBGA markers clobber A, so put
   them only where A is dead.
+* **Ships count (owner):** it drops when the fresh ship appears (before
+  its phrase), or to 0 with GAME OVER after the last, not at the hit
+  (check 2f).
+* **The finale (owner: "a lot more pomp and circumstance").**  Beating
+  the last area's boss runs MODE_FINALE instead of the salute: fx_finale
+  (an original ~9.5 s victory march), fireworks (a burst every 4 frames
+  in free alien slots, anywhere), banners on a countdown (fin_t from
+  FIN_TIME 600): THE FORTRESS HAS FALLEN! (flashing), ALL FOUR BOSSES
+  DEFEATED, SHIP BONUS: 10000 EACH (added: +1 to score's top BCD byte
+  per ship), ROUND n (round, from 1, shown up to 9; nothing else changes
+  per round yet), then warp_begin into the next round.  check 4g.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

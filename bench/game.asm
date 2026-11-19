@@ -59,6 +59,12 @@ MODE_SALUTE     equ     1               ; the victory salute
 MODE_WARP       equ     2               ; blasting off, up behind the status bar
 MODE_COAST      equ     3               ; gone: just the streaking stars
 MODE_ARRIVE     equ     4               ; rising in from the bottom, braking
+MODE_FINALE     equ     5               ; the fortress has fallen: song,
+FIN_TIME        equ     600             ; fireworks, banners (frames, counted
+FIN_T1          equ     470             ; down): "ALL FOUR BOSSES DEFEATED",
+FIN_T2          equ     340             ; the ship bonus,
+FIN_T3          equ     210             ; "ROUND n",
+FIN_T4          equ     90              ; the last firework; at 0, the warp
 COAST_TIME      equ     70
 BS_NONE         equ     0               ; boss states
 BS_ENTER        equ     1               ; descending from under the status bar
@@ -127,6 +133,8 @@ keyprev         rmb     1
 area            rmb     1               ; 0-3
 wv_index        rmb     1               ; waves done in this area (the map)
 mode_t          rmb     1
+fin_t           rmb     2               ; the finale's countdown
+round           rmb     1               ; 1, 2 ... (each fortress begins another)
 wp_wrapped      rmb     1
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
@@ -291,6 +299,8 @@ game_start_b1:  clr     0,x
                 clr     area
                 clr     mode
                 clr     boss_state
+                ldaa    #1
+                staa    round
                 ldaa    #1
                 staa    warpf
                 ldx     #fx_start       ; the start fanfare, over the map
@@ -765,7 +775,10 @@ sl_warp:        cmpa    #MODE_WARP
 sl_nwarp:       cmpa    #MODE_COAST
                 bne     sl_ncoast
                 jmp     coast_logic
-sl_ncoast:      jmp     arrive_logic
+sl_ncoast:      cmpa    #MODE_FINALE
+                bne     sl_narr
+                jmp     finale_logic
+sl_narr:        jmp     arrive_logic
 sl_play:        tst     dead
                 beq     sl_alive
                 ldx     #ship           ; lost: let the explosion play out
@@ -1167,7 +1180,11 @@ victory_check:
                 jmp     boss_start
 vc_win:
                 clr     boss_state
-                ldaa    #MODE_SALUTE
+                ldaa    area            ; the last area's boss (the fortress):
+                cmpa    #NAREAS-1       ; the finale
+                bne     vc_win_f1
+                jmp     finale_begin
+vc_win_f1:      ldaa    #MODE_SALUTE
                 staa    mode
                 ldaa    #SALUTE_TIME
                 staa    mode_t
@@ -1899,6 +1916,112 @@ score_5000:                             ; score += 5000 (BCD)
                 ldaa    score+1
                 adda    #$50
                 jmp     sc_mid
+
+; ---------------------------------------------------------------- finale
+; The fortress has fallen: all four bosses beaten.  A victory song,
+; fireworks all over the screen and a run of banners (the ship holds
+; still, untouchable), a bonus for every ship left, then the warp on to
+; the next round.
+finale_begin:
+                ldaa    #MODE_FINALE
+                staa    mode
+                ldd     #FIN_TIME
+                std     fin_t
+                jsr     score_5000      ; (the area's bonus: bigger)
+                ldx     #fx_finale
+                ldaa    #9
+                jsr     snd_play
+                ldd     #s_fallen
+                bsr     fin_banner
+                inc     banner_fl       ; (flashing)
+                rts
+fin_banner:                             ; D = banner: up until the next one
+                jsr     banner_show
+                ldaa    #FIN_TIME-FIN_T1-5
+                staa    banner_t
+                rts
+
+finale_logic:
+                ldx     #ship           ; hold still
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                ldd     fin_t
+                subd    #1
+                std     fin_t
+                bne     fin_f1
+                jmp     warp_begin      ; on to the next round
+fin_f1:         subd    #FIN_T1
+                bne     fin_f2
+                ldd     #s_alldone
+                bsr     fin_banner
+fin_f2:         ldd     fin_t
+                subd    #FIN_T2
+                bne     fin_f3
+                jsr     fin_bonus
+fin_f3:         ldd     fin_t
+                subd    #FIN_T3
+                bne     fin_f4
+                ldaa    round           ; the next round (shown up to 9)
+                cmpa    #9
+                bcc     fin_f5
+                inca
+                staa    round
+fin_f5:         adda    #'0'
+                staa    s_round+2+6
+                ldd     #s_round
+                bsr     fin_banner
+fin_f4:         ldd     fin_t           ; fireworks, every 4 frames
+                subd    #FIN_T4
+                bcs     fin_r
+                ldab    fin_t+1
+                andb    #3
+                bne     fin_r
+                ; fall through
+firework:                               ; a burst in a free slot, anywhere
+                ldx     #aliens
+firework_b1:    ldd     O_SPR,x
+                beq     firework_f1
+                ldab    #OBJ_SIZE
+                abx
+                cpx     #aliens_end
+                bne     firework_b1
+fin_r:          rts
+firework_f1:    stx     obj
+                jsr     rnd             ; x 4-115, y 16-159
+                ldaa    #112
+                mul
+                adda    #4
+                staa    bm_xy
+                jsr     rnd
+                ldaa    #144
+                mul
+                adda    #16
+                ldx     obj
+                staa    O_Y,x
+                ldaa    bm_xy
+                staa    O_X,x
+                clr     O_XF,x
+                clr     O_YF,x
+                ldd     #0
+                std     O_DX,x
+                std     O_DY,x
+                ldd     #anim_boom
+                jmp     boom_start
+
+fin_bonus:                              ; 10000 for every ship left
+                ldab    lives
+                beq     fin_bonus_f1
+fin_bonus_b1:   ldaa    score           ; (score+0 holds the 100000s and
+                adda    #1              ; 10000s, BCD)
+                daa
+                staa    score
+                decb
+                bne     fin_bonus_b1
+fin_bonus_f1:   ldaa    #1
+                staa    status_t
+                ldd     #s_bonus
+                jmp     fin_banner
 
 ; ---------------------------------------------------------------- warp
 warp_begin:
@@ -2834,6 +2957,18 @@ s_player:       fcc     "PLAYER 1"
                 fcb     0
 s_area:         fcc     "AREA "
                 fcb     0
+s_fallen:       fdb     TXT_AT(BANNER_ROW,4)
+                fcc     "THE FORTRESS HAS FALLEN!"
+                fcb     0
+s_alldone:      fdb     TXT_AT(BANNER_ROW,4)
+                fcc     "ALL FOUR BOSSES DEFEATED"
+                fcb     0
+s_bonus:        fdb     TXT_AT(BANNER_ROW,5)
+                fcc     "SHIP BONUS: 10000 EACH"
+                fcb     0
+s_round:        fdb     TXT_AT(BANNER_ROW,12)
+                fcc     "ROUND 2"       ; (the digit is set as it shows)
+                fcb     0
 s_cleared:      fdb     TXT_AT(BANNER_ROW,10)
                 fcc     "AREA CLEARED"
                 fcb     0
@@ -2919,6 +3054,58 @@ fx_salute:                              ; the victory salute, ~1.8 s
                 NOTE    N_D6, 8
                 NOTE    N_E6, 8
                 NOTE    N_C6, 30
+                fcb     0
+fx_finale:                              ; all four bosses beaten: a victory
+                NOTE    N_G4, 8         ; march, ~10 s (an original tune)
+                NOTE    N_C5, 8
+                NOTE    N_E5, 8
+                NOTE    N_G5, 8
+                NOTE    N_C6, 20
+                REST    4
+                NOTE    N_E5, 8
+                NOTE    N_G5, 8
+                NOTE    N_C6, 8
+                NOTE    N_E6, 16
+                NOTE    N_D6, 8
+                NOTE    N_C6, 8
+                NOTE    N_D6, 32
+                NOTE    N_G5, 8         ; (the dominant)
+                NOTE    N_B5, 8
+                NOTE    N_D6, 8
+                NOTE    N_G5, 8
+                NOTE    N_D6, 20
+                REST    4
+                NOTE    N_B5, 8
+                NOTE    N_C6, 8
+                NOTE    N_D6, 8
+                NOTE    N_E6, 16
+                NOTE    N_D6, 8
+                NOTE    N_B5, 8
+                NOTE    N_C6, 32
+                NOTE    N_A5, 8         ; (the subdominant)
+                NOTE    N_C6, 8
+                NOTE    N_F5, 8
+                NOTE    N_A5, 8
+                NOTE    N_C6, 16
+                NOTE    N_A5, 8
+                NOTE    N_F5, 8
+                NOTE    N_G5, 16
+                NOTE    N_E5, 16
+                NOTE    N_F5, 8
+                NOTE    N_A5, 8
+                NOTE    N_D6, 8
+                NOTE    N_C6, 8
+                NOTE    N_B5, 16
+                NOTE    N_G5, 16
+                NOTE    N_C6, 8         ; (home)
+                NOTE    N_G5, 8
+                NOTE    N_E5, 8
+                NOTE    N_G5, 8
+                NOTE    N_C6, 8
+                NOTE    N_E6, 8
+                NOTE    N_D6, 8
+                NOTE    N_B5, 8
+                NOTE    N_C6, 60
                 fcb     0
 fx_warp:                                ; the afterburner: a rising roar
                 fcb     40, SND_NOISE
