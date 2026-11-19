@@ -2626,7 +2626,7 @@ CAST_X          equ     36
 CAST_TXT        equ     14
 cast:           fdb     saucer_hr
                 fcb     CAST_X, 72
-                fdb     TXT_AT(76,CAST_TXT), s_looper
+                fdb     TXT_AT(76,CAST_TXT), s_swooper
                 fdb     dart_hr
                 fcb     CAST_X, 96
                 fdb     TXT_AT(100,CAST_TXT), s_zagger
@@ -3135,7 +3135,7 @@ s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_cast:         fcc     "MEET THE ALIENS"
                 fcb     0
-s_looper:       fcc     "LOOPER"
+s_swooper:      fcc     "SWOOPER"
                 fcb     0
 s_zagger:       fcc     "ZAGGER"
                 fcb     0

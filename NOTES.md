@@ -735,7 +735,7 @@ blue.  `bench/waves.asm` converted:
   rows, a letter 3 bytes by 30 rows, in colour bands bg_band through
   bg_cols = white/col_o/col_b, so it follows the colour swap), "MEET
   THE ALIENS" with the three aliens' real sprites and names (Claude's
-  names, the owner's choice: LOOPER the saucer, ZAGGER the dart, WARPER
+  names, the owner's choice: SWOOPER the saucer (was LOOPER), ZAGGER the dart, WARPER
   the orbiter; the cast table), the start prompt, the controls and the
   credits line "AN ABENE GAME".  Bosses and envoys stay off it
   (mysteries).  The name STARFALL sticks (owner: no well-known game has
@@ -744,6 +744,16 @@ blue.  `bench/waves.asm` converted:
   S_ADDR set and erases nothing; the game keeps plain stars).  check 1c.
   Only WARPERs warp: boss 1's escort saucers fly path_loopL, not
   path_circle (the owner noticed LOOPER and WARPER sharing moves).
+* **TODO (owner, 2026-11-18), if the code fits:**
+  * **High score file on the SD card**, as other recent MC-10 games do,
+    with a name unique to the game (e.g. STARFALL.HI).  The BIOS can
+    LOAD/SAVE raw memory (fn 22/24, mode 8) or open, read and write a
+    data file (fn 2/6/12, see vmc10-linux docs/MCX32-SD_protocol.md);
+    needs a table (and name entry?) and a missing-file case (first run).
+  * **PI-KEY10 support** (popular: modern keyboards, and two Atari
+    2600-style joysticks): find out how a program reads its joysticks
+    (keyboard matrix emulation or its own port) before designing; the
+    controls are in kbd_read / joy.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
