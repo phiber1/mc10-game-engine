@@ -753,7 +753,13 @@ blue.  `bench/waves.asm` converted:
   * **PI-KEY10 support** (popular: modern keyboards, and two Atari
     2600-style joysticks): find out how a program reads its joysticks
     (keyboard matrix emulation or its own port) before designing; the
-    controls are in kbd_read / joy.
+    controls are in kbd_read / joy.  Darren Ottery's games support its
+    joysticks (owner), so their code shows how.
+  * **Difficulty rising each round** (round counts from 1; nothing
+    changes per round yet): e.g. faster aliens or bombs, more bombs,
+    more boss hits.
+  * **Boss 4's look:** the fortress art is still Claude's first draft;
+    the owner hasn't decided on changes yet.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
