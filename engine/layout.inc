@@ -92,6 +92,7 @@ st_a            rmb     2
 st_m            rmb     1
 st_seed         rmb     2
 st_half         rmb     1               ; which half of the stars moves next
+st_behind       rmb     1               ; stars pass behind the screen's contents
 an_obj          rmb     2               ; sprman.asm animation
 an_tmp          rmb     2
 sm_band         rmb     1               ; sprman: rows of a status band (0 = none)

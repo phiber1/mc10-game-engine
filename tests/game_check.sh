@@ -43,6 +43,13 @@ b1=$(echo "$out" | grep "^mem $BLK" | sed -n 2p | cut -d: -f2 | tr -d ' ')
 b2=$(echo "$out" | grep "^mem $BLK" | sed -n 3p | cut -d: -f2 | tr -d ' ')
 check "colour check after loading: orange block ($b0), C swaps it ($b1), SPACE goes to the title ($b2)" "[ $b0 = AAAAAAAA ] && [ $b1 = 55555555 ] && [ $b2 = 00000000 ]"
 
+# 1c. The title's star field passes behind it: after 30 s of stars, every
+#     byte the title drew (logo, cast, text) is unchanged.
+#     (Title bytes: nonzero in all three snapshots; a lone star rarely is.)
+out=$(raw 'type: ' frames:20 mem:4000,6144 frames:900 mem:4000,6144 frames:900 mem:4000,6144)
+dmg=$(echo "$out" | grep '^mem 4000' | cut -d: -f2 | awk '{for(i=1;i<=NF;i++) v[NR,i]=$i} END{for(i=1;i<=6144;i++) if(v[1,i]!="00" && v[2,i]!="00" && v[3,i]!="00" && (v[1,i]!=v[2,i] || v[2,i]!=v[3,i])) d++; print d+0}')
+check "the title's stars pass behind it (title bytes changed: $dmg)" "[ $dmg -eq 0 ]"
+
 # 1b. The status bar is on screen: rows 0-6 match status_buf (sampled a
 #     few times during play, as sprites cross it).
 SB=$(sym status_buf); BAND_BYTES=224

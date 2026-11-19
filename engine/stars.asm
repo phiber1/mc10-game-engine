@@ -7,6 +7,10 @@
 ; sprite pixel a star's erase touched, so nothing is damaged.
 ;
 ; stars_init    place every star at random and plot it
+; st_behind     nonzero: the stars pass behind whatever is on the screen
+;               (a title's text): a star is plotted only into an empty
+;               byte, else it stays undrawn (bit 15 of S_ADDR set) and
+;               nothing is erased for it.  Zero (the game): plain.
 ; #define STAR_TOP n to keep the stars below row n (under a status bar).
 ; stars_update  once per frame: updates half the stars (alternating), so
 ;               a star's S_SPD is its speed per two frames.  ~20 cycles per
@@ -49,15 +53,13 @@ stars_init:
                 addd    #SCREEN
                 std     st_a
                 jsr     st_place        ; random column and bit
+                ldx     st_a
+                bsr     st_plot         ; plot (or not, behind something)
                 ldx     st_ptr
                 ldd     st_a
                 std     S_ADDR,x
                 ldaa    st_m
                 staa    S_MASK,x
-                ldx     st_a
-                oraa    0,x             ; plot
-                staa    0,x
-                ldx     st_ptr
                 ldab    #STAR_SIZE
                 abx
                 cpx     #star_end
@@ -78,12 +80,18 @@ st_loop:
                 stx     st_ptr
                 ldaa    S_MASK,x
                 staa    st_m
+                ldd     S_ADDR,x
+                bmi     st_undrawn      ; (behind something: nothing to erase)
                 ldx     S_ADDR,x
                 ldab    st_m            ; erase the old pixel
                 comb
                 andb    0,x
                 stab    0,x
-                ldab    #ROW_BYTES      ; down a row
+                bra     st_down
+st_undrawn:     anda    #$7F
+                std     st_a
+                ldx     st_a
+st_down:        ldab    #ROW_BYTES      ; down a row
                 abx
                 cpx     #SCREEN_END
                 bcs     +
@@ -91,10 +99,7 @@ st_loop:
                 stx     st_a            ; the top, at a new random column
                 bsr     st_place
                 ldx     st_a
-+               ldaa    0,x             ; plot the new pixel
-                oraa    st_m
-                staa    0,x
-                stx     st_a
++               bsr     st_plot         ; plot the new pixel
                 ldx     st_ptr
                 ldd     st_a
                 std     S_ADDR,x
@@ -110,6 +115,21 @@ st_next:
 ; st_a += random column (0-31); st_m = the star's pixel: for the slower
 ; layers (S_SPD < $C0) a single random bit, which artifact colour shows as
 ; an orange or a blue speck; for the fastest layer a bit pair, white.
+st_plot:                                ; X = its byte, st_m its bits: plot
+                stx     st_a            ; it; st_a = X, or with bit 15 set
+                tst     st_behind       ; when it stays hidden (behind)
+                beq     st_plot_f1
+                tst     0,x
+                beq     st_plot_f1
+                ldaa    st_a
+                oraa    #$80
+                staa    st_a
+                rts
+st_plot_f1:     ldaa    0,x
+                oraa    st_m
+                staa    0,x
+                rts
+
 st_place:
                 bsr     st_rnd
                 andb    #31

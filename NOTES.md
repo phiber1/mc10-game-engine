@@ -739,7 +739,11 @@ blue.  `bench/waves.asm` converted:
   the orbiter; the cast table), the start prompt, the controls and the
   credits line "AN ABENE GAME".  Bosses and envoys stay off it
   (mysteries).  The name STARFALL sticks (owner: no well-known game has
-  it) unless something better comes up.
+  it) unless something better comes up.  The title has the star field behind it (stars.asm st_behind: a star
+  plots only into an empty byte, else stays undrawn with bit 15 of
+  S_ADDR set and erases nothing; the game keeps plain stars).  check 1c.
+  Only WARPERs warp: boss 1's escort saucers fly path_loopL, not
+  path_circle (the owner noticed LOOPER and WARPER sharing moves).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

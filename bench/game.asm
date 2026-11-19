@@ -270,8 +270,11 @@ cc2_up:         jsr     frame_wait      ; SPACE let go first (or the title
 title:
                 jsr     snd_stop
                 jsr     title_draw
+                inc     st_behind       ; the star field, behind the title
+                jsr     stars_init
 t_loop:
                 jsr     frame_wait
+                jsr     stars_update
                 jsr     snd_frame
                 jsr     kbd_read
                 ldaa    joy
@@ -280,6 +283,7 @@ t_loop:
 
 ; ---------------------------------------------------------------- a game
 game_start:
+                clr     st_behind       ; (the game's stars are plain)
                 jsr     cls
                 jsr     stars_init
                 ldx     #objs           ; empty every object slot
@@ -3060,8 +3064,8 @@ cans4:          fcb     4
                 CANNON  21, 16
                 CANNON  12, 16
                 CANNON  31, 16
-esc1:           fdb     saucer_dsc, path_circle
-                fcb     4, 20, 35, 0
+esc1:           fdb     saucer_dsc, path_loopL      ; (only WARPERs warp)
+                fcb     4, 20, 30, 0
                 fdb     dart_dsc, path_zigRL
                 fcb     4, 20, 21, 12
                 fdb     0
