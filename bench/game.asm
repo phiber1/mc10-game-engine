@@ -134,6 +134,14 @@ keyprev         rmb     1
 area            rmb     1               ; 0-3
 wv_index        rmb     1               ; waves done in this area (the map)
 mode_t          rmb     1
+bg_scr          rmb     2               ; big_char: screen position,
+bg_g            rmb     2               ; ... glyph row,
+bg_b            rmb     3               ; ... a glyph row magnified,
+bg_n            rmb     1               ; ... rows left,
+bg_k            rmb     1
+bg_row          rmb     1               ; ... the logo row (its colour band)
+bg_cols         rmb     3               ; white, orange, blue masks
+bg_m            rmb     1               ; ... the row's mask
 fin_t           rmb     2               ; the finale's countdown
 round           rmb     1               ; 1, 2 ... (each fortress begins another)
 wp_wrapped      rmb     1
@@ -2558,27 +2566,163 @@ ovl_name:       fcc     "BOSS1"         ; (the digit is set as it loads)
 ; ---------------------------------------------------------------- title
 title_draw:
                 jsr     cls
+                ldaa    #TXT_WHITE      ; the logo's colours (after any swap)
+                ldab    col_o
+                std     bg_cols
+                ldaa    col_b
+                staa    bg_cols+2
+                ldx     #TXT_AT(12,4)   ; the name, big: 8 letters of 3 bytes
+                ldd     #s_title
+                jsr     big_str
                 ldaa    col_o
                 staa    txt_col
-                ldx     #TXT_AT(30,9)
-                ldd     #s_title
-                jsr     txt_str2
+                ldx     #TXT_AT(56,9)
+                ldd     #s_cast
+                jsr     txt_str
+                ldx     #cast           ; the aliens and their names
+td_cast:        ldd     0,x
+                beq     td_cast_f1
+                stx     bu_s
+                ldaa    2,x             ; the sprite
+                ldab    3,x
+                ldx     0,x
+                jsr     spr_art
                 ldaa    #TXT_WHITE
                 staa    txt_col
-                ldx     #TXT_AT(50,5)
-                ldd     #s_sub
+                ldx     bu_s
+                ldd     6,x             ; its name
+                pshb
+                psha
+                ldx     4,x
+                pula                    ; (D = name, X = where)
+                pulb
                 jsr     txt_str
-                ldaa    col_b
+                ldx     bu_s
+                ldab    #8
+                abx
+                bra     td_cast
+td_cast_f1:     ldaa    col_b
                 staa    txt_col
-                ldx     #TXT_AT(140,6)
+                ldx     #TXT_AT(150,6)
                 ldd     #s_start
                 jsr     txt_str
                 ldaa    #TXT_WHITE
                 staa    txt_col
                 ldx     #TXT_AT(165,2)
                 ldd     #s_keys
+                jsr     txt_str
+                ldaa    col_o
+                staa    txt_col
+                ldx     #TXT_AT(182,CREDIT_COL)
+                ldd     #s_credit
                 jmp     txt_str
 
+; The cast on the title: sprite table, x, y, name's screen address, name
+CAST_X          equ     36
+CAST_TXT        equ     14
+cast:           fdb     saucer_hr
+                fcb     CAST_X, 72
+                fdb     TXT_AT(76,CAST_TXT), s_looper
+                fdb     dart_hr
+                fcb     CAST_X, 96
+                fdb     TXT_AT(100,CAST_TXT), s_zigger
+                fdb     orbiter_hr
+                fcb     CAST_X, 120
+                fdb     TXT_AT(124,CAST_TXT), s_blinker
+                fdb     0
+
+; big_str: X = screen, D = string: the logo letters, magnified (each
+; font pixel 3 artifact pixels wide and 6 rows tall: a letter is 3 bytes
+; by 30 rows) in colour bands (bg_band, through bg_cols)
+big_str:
+                std     bu_s
+big_str_b1:     pshx
+                ldx     bu_s
+                ldaa    0,x
+                beq     big_str_f1
+                inx
+                stx     bu_s
+                pulx
+                pshx
+                bsr     big_char
+                pulx
+                inx
+                inx
+                inx
+                bra     big_str_b1
+big_str_f1:     pulx
+                rts
+
+big_char:                               ; A = character, X = screen
+                stx     bg_scr
+                suba    #32
+                ldab    #5
+                mul
+                addd    #font
+                std     bg_g
+                ldaa    #5
+                staa    bg_n
+                clr     bg_row
+big_char_b1:    ldx     bg_g            ; a glyph row: 3 pixels (bit pairs
+                ldaa    0,x             ; 7-6, 5-4, 3-2) -> 3 bytes, each
+                inx                     ; pixel 3 artifact pixels wide
+                stx     bg_g
+                clr     bg_b
+                clr     bg_b+1
+                clr     bg_b+2
+                bita    #$C0
+                beq     big_char_f1
+                ldab    #$FC
+                stab    bg_b
+big_char_f1:    bita    #$30
+                beq     big_char_f2
+                ldab    bg_b
+                orab    #$03
+                stab    bg_b
+                ldab    #$F0
+                stab    bg_b+1
+big_char_f2:    bita    #$0C
+                beq     big_char_f3
+                ldab    bg_b+1
+                orab    #$0F
+                stab    bg_b+1
+                ldab    #$C0
+                stab    bg_b+2
+big_char_f3:    ldaa    #6              ; 6 rows of it
+                staa    bg_k
+big_char_b2:    ldx     #bg_band        ; this row's colour mask
+                ldab    bg_row
+                abx
+                ldab    0,x
+                ldx     #bg_cols
+                abx
+                ldab    0,x
+                stab    bg_m
+                ldx     bg_scr
+                ldaa    bg_b
+                anda    bg_m
+                staa    0,x
+                ldaa    bg_b+1
+                anda    bg_m
+                staa    1,x
+                ldaa    bg_b+2
+                anda    bg_m
+                staa    2,x
+                ldab    #ROW_BYTES
+                abx
+                stx     bg_scr
+                inc     bg_row
+                dec     bg_k
+                bne     big_char_b2
+                dec     bg_n
+                beq     big_char_f4
+                jmp     big_char_b1
+big_char_f4:    rts
+; the logo's colour bands, a row each (0 white, 1 orange, 2 blue), with
+; dithered seams
+bg_band:        fcb     0, 0, 0, 0, 0, 0, 0, 0, 1, 0
+                fcb     1, 1, 1, 1, 1, 1, 1, 1, 1, 1
+                fcb     2, 1, 2, 2, 2, 2, 2, 2, 2, 2
 col_draw:                               ; the colour check screen
                 jsr     cls
                 ldx     #TXT_AT(70,14)  ; a block that should look orange
@@ -2985,7 +3129,16 @@ s_bossin:       fdb     TXT_AT(BANNER_ROW,11)
                 fcb     0
 s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
-s_sub:          fcc     "A TEST OF THE MC-10 ENGINE"
+s_cast:         fcc     "MEET THE ALIENS"
+                fcb     0
+s_looper:       fcc     "LOOPER"
+                fcb     0
+s_zigger:       fcc     "ZIGGER"
+                fcb     0
+s_blinker:      fcc     "BLINKER"
+                fcb     0
+CREDIT_COL      equ     4               ; (centred: 32 - its length, halved)
+s_credit:       fcc     "CREDITS LINE TO BE DECIDED"
                 fcb     0
 s_sample1:      fcc     "THIS BLOCK SHOULD BE ORANGE"
                 fcb     0

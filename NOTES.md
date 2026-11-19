@@ -730,6 +730,16 @@ blue.  `bench/waves.asm` converted:
   NOTE is two), so its priority 9 no longer silences the warp's roar;
   fx_warp now plays at priority 9 anyway.  A game starts with a ROUND 1
   banner (round_banner).  check 4h.
+* **Title screen (draft, 2026-11-18).**  The name big (big_str /
+  big_char: the 3x5 font magnified, each pixel 3 artifact pixels by 6
+  rows, a letter 3 bytes by 30 rows, in colour bands bg_band through
+  bg_cols = white/col_o/col_b, so it follows the colour swap), "MEET
+  THE ALIENS" with the three aliens' real sprites and names (Claude's
+  suggestions: LOOPER the saucer, ZIGGER the dart, BLINKER the orbiter;
+  the cast table), the start prompt, the controls and a credits line
+  (s_credit, placeholder until the owner gives the text).  Bosses and
+  envoys stay off it (mysteries).  The game's name is still the working
+  title STARFALL.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
