@@ -231,11 +231,24 @@ check "a long boss fight doesn't push the map's ship up (top row ${top:-none})" 
 #     then the warp to area 1 and play.
 SC=$(sym score); RD=$(sym round)
 out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,03 poke:$SC,000000 \
-      poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:400 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
+      poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:500 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
 m5=$(echo "$out" | memval $MODE 1); r1=$(echo "$out" | memval $RD 1); sc=$(echo "$out" | grep "^mem $SC" | cut -d: -f2 | tr -d ' ')
 r2=$(echo "$out" | memval $RD 2); a0=$(echo "$out" | memval $AREA 1); m0=$(echo "$out" | memval $MODE 2)
 check "the fortress's fall: finale (mode $m5), ship bonus (score's top byte $sc for 3 ships), round $r1 -> $r2, then area $a0 in play (mode $m0)" \
       "[ $m5 -eq 5 ] && [ $sc = 03 ] && [ $r1 -eq 1 ] && [ $r2 -eq 2 ] && [ $a0 -eq 0 ] && [ $m0 -eq 0 ]"
+
+# 4h. The finale's song is over when the ship blasts off, so the warp's
+#     roar plays (it used to be silent); and a game starts with a ROUND 1
+#     banner.
+FXW=$(sym fx_warp); FXF=$(sym fx_finale); SPTR=$(sym snd_ptr)
+out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 \
+      bp:$(sym warp_begin) frames:5 mem:$SPTR,2)
+p=$(echo "$out" | grep "^mem $SPTR" | cut -d: -f2 | tr -d ' ')
+check "the warp after the finale roars (sound at \$$p, fx_warp \$$FXW)" "[ \$((0x$p)) -ge \$((0x$FXW)) ] && [ \$((0x$p)) -lt \$((0x$FXW + 16)) ]"
+out=$(run frames:30 'type: ' frames:180 mem:$(sym banner_p),2 mem:$(sym s_round),9)
+bp=$(echo "$out" | grep "^mem $(sym banner_p)" | cut -d: -f2 | tr -d ' ')
+rt=$(echo "$out" | grep "^mem $(sym s_round)" | cut -d: -f2 | awk '{for(i=3;i<=9;i++) printf "%c", strtonum("0x"$i)}')
+check "a game begins with a banner: $rt" "[ $bp = $(sym s_round) ] && [ \"$rt\" = 'ROUND 1' ]"
 
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.

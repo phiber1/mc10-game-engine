@@ -60,11 +60,12 @@ MODE_WARP       equ     2               ; blasting off, up behind the status bar
 MODE_COAST      equ     3               ; gone: just the streaking stars
 MODE_ARRIVE     equ     4               ; rising in from the bottom, braking
 MODE_FINALE     equ     5               ; the fortress has fallen: song,
-FIN_TIME        equ     600             ; fireworks, banners (frames, counted
-FIN_T1          equ     470             ; down): "ALL FOUR BOSSES DEFEATED",
-FIN_T2          equ     340             ; the ship bonus,
-FIN_T3          equ     210             ; "ROUND n",
-FIN_T4          equ     90              ; the last firework; at 0, the warp
+FIN_TIME        equ     720             ; fireworks, banners (frames, counted
+FIN_T1          equ     520             ; down; the song takes ~680, and the
+FIN_T2          equ     390             ; warp's roar must follow it): "ALL
+FIN_T3          equ     260             ; FOUR BOSSES DEFEATED", the bonus,
+FIN_T4          equ     140             ; "ROUND n", the last firework; at 0,
+                                        ; the warp
 COAST_TIME      equ     70
 BS_NONE         equ     0               ; boss states
 BS_ENTER        equ     1               ; descending from under the status bar
@@ -308,6 +309,7 @@ game_start_b1:  clr     0,x
                 jsr     snd_play
                 jsr     area_begin
                 jsr     map_show
+                jsr     round_banner    ; "ROUND 1" as play begins
 loop:
                 jsr     frame_wait
                 METER_ON
@@ -1931,13 +1933,15 @@ finale_begin:
                 ldx     #fx_finale
                 ldaa    #9
                 jsr     snd_play
-                ldd     #s_fallen
-                bsr     fin_banner
-                inc     banner_fl       ; (flashing)
+                ldd     #s_fallen       ; (the first one stays longest,
+                bsr     fin_banner      ; flashing)
+                ldaa    #FIN_TIME-FIN_T1-5
+                staa    banner_t
+                inc     banner_fl
                 rts
 fin_banner:                             ; D = banner: up until the next one
                 jsr     banner_show
-                ldaa    #FIN_TIME-FIN_T1-5
+                ldaa    #FIN_T1-FIN_T2-5
                 staa    banner_t
                 rts
 
@@ -1967,10 +1971,7 @@ fin_f3:         ldd     fin_t
                 bcc     fin_f5
                 inca
                 staa    round
-fin_f5:         adda    #'0'
-                staa    s_round+2+6
-                ldd     #s_round
-                bsr     fin_banner
+fin_f5:         bsr     round_banner
 fin_f4:         ldd     fin_t           ; fireworks, every 4 frames
                 subd    #FIN_T4
                 bcs     fin_r
@@ -2009,6 +2010,13 @@ firework_f1:    stx     obj
                 ldd     #anim_boom
                 jmp     boom_start
 
+round_banner:                           ; "ROUND n" (the current round)
+                ldaa    round
+                adda    #'0'
+                staa    s_round+2+6
+                ldd     #s_round
+                jmp     fin_banner
+
 fin_bonus:                              ; 10000 for every ship left
                 ldab    lives
                 beq     fin_bonus_f1
@@ -2039,9 +2047,9 @@ warp_begin:
                 bls     warp_begin_f1   ; ship's range
                 suba    #4
 warp_begin_f1:  staa    O_X,x
-                ldx     #fx_warp
-                ldaa    #8
-                jmp     snd_play
+                ldx     #fx_warp        ; (a jingle's priority: the roar
+                ldaa    #9              ; must not lose to a tune's last
+                jmp     snd_play        ; notes)
 
 warp_logic:                             ; blast off: up, behind the status bar
                 ldx     #ship

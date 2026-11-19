@@ -725,6 +725,11 @@ blue.  `bench/waves.asm` converted:
   DEFEATED, SHIP BONUS: 10000 EACH (added: +1 to score's top BCD byte
   per ship), ROUND n (round, from 1, shown up to 9; nothing else changes
   per round yet), then warp_begin into the next round.  check 4g.
+  Then (owner): the first banner stays ~3.3 s; FIN_TIME 720 (the song
+  is ~680 frames: snd_frame spends a frame loading each segment, and a
+  NOTE is two), so its priority 9 no longer silences the warp's roar;
+  fx_warp now plays at priority 9 anyway.  A game starts with a ROUND 1
+  banner (round_banner).  check 4h.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
