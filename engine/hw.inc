@@ -36,3 +36,16 @@ FRAME_CYCLES    equ     14934
 
 ; Debug port (emulator only: vmc10 --debug-port BE00)
 DBGPORT         equ     $BE00
+
+; MCX32-SD BIOS (see vmc10-linux docs/MCX32-SD_protocol.md): JSR MCX_BIOS
+; with A = device (0 = SD card), B = function, X = a parameter block;
+; returns carry clear and B = 0, or carry set and B = an error code
+MCX_BIOS        equ     $2000
+BIOS_LOAD       equ     22              ; LOAD a file (mode in PB_MODE)
+PB_SIZE         equ     18              ; parameter block: its size,
+PB_NAME         equ     4               ; ... the name's address,
+PB_MODE         equ     10              ; ... the mode (PB_LOADM: a DECB binary,
+PB_LOADM        equ     2               ;     to its own addresses + PB_BUF),
+PB_NLEN         equ     11              ; ... the name's length,
+PB_BUF          equ     12              ; ... buffer / load offset,
+PB_CALLBACK     equ     16              ; ... callback (0 = none)

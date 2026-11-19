@@ -12,6 +12,7 @@ BIN=build/game.bin
 LST=build/game.lst
 SD=build/sd-check
 mkdir -p $SD && cp $BIN $SD/GAME.BIN
+for n in 1 2 3 4; do cp build/ovl$n.bin $SD/BOSS$n.BIN; done   # the boss overlays
 pass=0; fail=0
 check() {   # name, condition (shell test)
     if eval "$2"; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1"; fail=$((fail+1)); fi
@@ -126,6 +127,19 @@ n=$(( 0x$SHOTS_END - 0x$ALIENS ))
 z=$(printf '0%.0s' $(seq 1 $((n*2))))
 out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:700 mem:$AREA,1 mem:$MODE,1 mem:$WARPF,1)
 check "area clear leads to area 2, back in play" "[ $(echo "$out" | memval $AREA) -eq 1 ] && [ $(echo "$out" | memval $MODE) -eq 0 ] && [ $(echo "$out" | memval $WARPF) -eq 1 ]"
+
+# 3a. Boss overlays: area 1's boss is loaded from BOSS1.BIN before play,
+#     and the warp to area 2 loads BOSS2.BIN during the map screen (its
+#     header names boss2's hull).  Without the boss files the game stops
+#     with a message (CANNOT LOAD...) instead of running on.
+OC=$(sym ovl_cur); B2D=$(awk '/Symbol Table/{p=1} p' build/ovl2.lst | tr '|' '\n' | awk '$1=="boss2_dsc"{print $3}')
+out=$(run frames:30 'type: ' frames:200 mem:$OC,1 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:700 mem:$OC,1 mem:A200,2)
+o1=$(echo "$out" | memval $OC 1); o2=$(echo "$out" | memval $OC 2); hd=$(echo "$out" | grep "^mem A200" | cut -d: -f2 | tr -d ' ')
+check "boss overlays load: area 1 ($o1), then area 2 ($o2, header $hd = boss2 $B2D)" "[ $o1 -eq 1 ] && [ $o2 -eq 2 ] && [ $hd = $B2D ]"
+NB=build/sd-noboss; mkdir -p $NB && rm -f $NB/BOSS*.BIN && cp $BIN $NB/GAME.BIN
+out=$($H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$NB frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 'type: ' frames:200 mem:$OC,1 mem:$(sym ld_t),1 mem:$MODE,1 frames:200 mem:$(sym ld_t),1)
+e1=$(echo "$out" | memval $(sym ld_t) 1); e2=$(echo "$out" | memval $(sym ld_t) 2)
+check "missing boss file: the game stops with a message (BIOS error $e1, still $e2)" "[ $(echo "$out" | memval $OC 1) -eq 0 ] && [ $e1 -gt 4 ] && [ $e1 -eq $e2 ]"
 
 # 4. The boss: with the waves cleared it arrives; shots up the channel
 #    into its core (boss held still, ship lined up) destroy it, and the

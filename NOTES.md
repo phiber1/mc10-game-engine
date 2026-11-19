@@ -655,6 +655,32 @@ blue.  `bench/waves.asm` converted:
   game over returns to the title only.  col_ok is gone.  make check 1a;
   the tests' run() passes the check with a SPACE first.  Main segment
   now ends $ADEE (17 bytes free).
+* **Boss overlays from the SD card (2026-11-18, owner: "worth a shot").**
+  Each boss's hull and envoy (sprites/bossN.spr; boss 1's moved out of
+  game.spr) is assembled by bench/ovl/boss.asm at OVL_BASE ($A200-$ADFF,
+  bench/game_ovl.inc) into build/ovlN.bin, copied to the SD card as
+  BOSSN.BIN (make run-game and make check do it).  Header: fdb hull_dsc,
+  envoy_dsc, 0 (boss_start reads it; it's also the col_swap list, applied
+  after a load if the colours were swapped).  map_show calls ovl_need:
+  if the area's overlay (boss_tab BT_OVL) isn't the one in memory
+  (ovl_cur), LOADM "BOSSn" through the MCX32-SD BIOS (JSR $2000, fn 22,
+  mode 2; hw.inc names the parameter block), interrupts on so the frame
+  tick times it (ld_t, frames), and the map waits only what's left of
+  MAP_TIME.  Debug builds show "LOAD nnn" on the map: 4 frames in the
+  emulator (the real BIOS byte loop runs there) - check it on hardware.
+  boss_start calls ovl_need too (a safety net).  A failed load stops the
+  game with "CANNOT LOAD THE BOSS FILE" (error code in ld_t).  The BIOS
+  writes only its parameter block and the stack (checked by breakpoints
+  around the call).  spritec -e gives the game the bosses' constants.
+  Memory after: main ends $9451 (~3.5K free below OVL_BASE), low $15FA
+  (~2.5K free); overlays 3036 (boss 1, the biggest), 2553, 2766, 982
+  bytes.  make check 3a.  Distribution is now GAME.BIN + BOSS1-4.BIN.
+* **Fixed: the arriving ship wrote into BSS.**  It started at y 208 in
+  the 30-row warp sprite, so rows 224-237 went past the bottom gutter
+  ($5800-$5BFF) into BSS at $5C00 (zeroing a strip of variables at every
+  arrival; found when ovl_cur was cleared).  It now starts at
+  224-shipw1_H (an assembly-time check).  Rule: nothing may be drawn
+  past row 223 from below (aliens wrap and bombs end before 192).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

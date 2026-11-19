@@ -1,0 +1,36 @@
+# Boss 1: the mothership, 24x16: a dome between notched shoulders, an
+# antenna rising from each shoulder (the top 4 rows, BOSS_TOP in the
+# game).  Moves at most half a pixel a frame each way, so a 1-pixel halo.
+# The black opening in the middle (columns 10-13, rows 8-11) is where the
+# core sits; the channel below it lets shots in.
+sprite boss1 artifact halo 1 1
+O......................O
+.W....................W.
+.W....................W.
+..W..................W..
+..W....WWWWWWWWWW....W..
+...W..WOOOOOOOOOOW..W...
+...W..WBBOOOOOOBBW..W...
+....W.WBBBOOOOBBBW.W....
+WWWWWWOBBO....OBBOWWWWWW
+WOOOOOOOOO....OOOOOOOOOW
+WWOOOOOOOO....OOOOOOOOWW
+.WWWOOOOOO....OOOOOOWWW.
+...WWWWOOO....OOOWWWW...
+....BB.WWW....WWW.BB....
+....BB............BB....
+....OO............OO....
+end
+
+# Boss envoy, 8x8: flies beside the boss (moving with it) and bombs.
+sprite envoy artifact halo 1 1
+..WWWW..
+.WBBBBW.
+WBBWWBBW
+WBWOOWBW
+WBBWWBBW
+.WBBBBW.
+..O..O..
+.O....O.
+end
+

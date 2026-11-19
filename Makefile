@@ -31,11 +31,12 @@ LOAD    := 6000
 CC      ?= cc
 CFLAGS  ?= -O2 -Wall -Wextra -std=c11
 
+.SECONDEXPANSION:
 PROGS   := $(basename $(notdir $(wildcard bench/*.asm)))
 ENGINE  := $(wildcard engine/*.asm engine/*.inc)
 SPRITES := $(patsubst sprites/%.spr,build/%_spr.inc,$(wildcard sprites/*.spr))
 
-all: $(foreach p,$(PROGS),build/$(p).bin)
+all: $(foreach p,$(PROGS),build/$(p).bin) $(OVL_BINS)
 
 build/mkc10: tools/mkc10.c | build
 	$(CC) $(CFLAGS) -o $@ $<
@@ -46,9 +47,12 @@ build/p2decb: tools/p2decb.c | build
 build/spritec: tools/spritec.c | build
 	$(CC) $(CFLAGS) -o $@ $<
 
-# compiled sprites: sprites/NAME.spr -> build/NAME_spr.inc
+# compiled sprites: sprites/NAME.spr -> build/NAME_spr.inc (and only
+# their constants, NAME_equ.inc, for programs that load the code later)
 build/%_spr.inc: sprites/%.spr build/spritec
 	build/spritec $< > $@
+build/%_equ.inc: sprites/%.spr build/spritec
+	build/spritec -e $< > $@
 
 build:
 	mkdir -p build
@@ -114,13 +118,36 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 	    -DART=$(if $(findstring a,$*),1,0) -DMETER=$(if $(findstring k,$*),1,0) \
 	    -DNSPR=16 $(CPPDEFS) $< -o $@
 
+# The game's boss overlays (bench/game_ovl.inc): sprites/bossN.spr ->
+# build/ovlN.bin at OVL_BASE, which the game loads from the SD card as
+# BOSSN.BIN.  game_syms.inc carries the game's addresses they need.
+BOSSES   := 1 2 3 4
+OVL_BINS := $(foreach n,$(BOSSES),build/ovl$(n).bin)
+ENVOY_1  := envoy
+ENVOY_2  := envoy2
+ENVOY_3  := envoy3
+ENVOY_4  := envoy4
+OVL_BASE := $(shell awk '/^OVL_BASE/{print substr($$3,2)}' bench/game_ovl.inc)
+OVL_END  := $(shell awk '/^OVL_END/{print substr($$3,2)}' bench/game_ovl.inc)
+build/game.s build/gamek.s: $(foreach n,$(BOSSES),build/boss$(n)_equ.inc) bench/game_ovl.inc
+build/game_syms.inc: build/game.p
+	awk '/Symbol Table/{p=1} p' build/game.lst | tr '|' '\n' | \
+	    awk '$$1=="spr_art" || $$1=="spr_mono" {printf "%s\tequ\t$$%s\n", $$1, $$3}' > $@
+build/ovl%.s: bench/ovl/boss.asm bench/game_ovl.inc build/game_syms.inc build/boss%_spr.inc | build
+	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -Ibench -DHULL=boss$* -DENVOY=$(ENVOY_$*) \
+	    -DSPRINC='"boss$*_spr.inc"' $< -o $@
+build/ovl%.bin: build/ovl%.p build/p2decb
+	build/p2decb $< $@ $(OVL_BASE) $(OVL_BASE)-$(OVL_END)
+overlays: $(OVL_BINS)
+
 # Run in the emulator: the build/sd folder is the MCX32-SD's SD card;
 # LOADM the program, then EXEC.  Mono programs run with artifact colours
 # off.  DBGLOG=FILE logs the debug port to FILE.
 SD      := build/sd
-run-%: build/%.bin
+run-%: build/%.bin $$(if $$(filter game gamek,$$*),$$(OVL_BINS))
 	mkdir -p $(SD)
 	cp $< $(SD)/$(shell echo $* | tr a-z A-Z).BIN
+	$(if $(filter game gamek,$*),for n in $(BOSSES); do cp build/ovl$$n.bin $(SD)/BOSS$$n.BIN; done)
 	$(EMU) --mcx32sd --8k --sd $(SD) $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --type 'LOADM"$(shell echo $* | tr a-z A-Z)"\nEXEC\n'
@@ -160,11 +187,11 @@ build/view.s: build/view_list.inc build/view_spr.inc
 FORCE:
 
 # Headless checks of the game prototype (needs the emulator's harness)
-check: build/game.bin
+check: build/game.bin $(OVL_BINS)
 	VMC10=$(VMC10) sh tests/game_check.sh
 
 clean:
 	rm -rf build
 
-.PHONY: all clean variants smdemo check FORCE
+.PHONY: all clean variants smdemo check overlays FORCE
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc build/%.bin

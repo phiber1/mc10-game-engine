@@ -15,6 +15,7 @@
 #define FL_HALFX 1                      /* artifact colour: 128 pixels across */
 #define STAR_TOP 7                      /* stars stay below the status bar */
 #include "layout.inc"
+#include "game_ovl.inc"
 
 #define NALIEN 10
 #define NBOMB 6
@@ -165,6 +166,9 @@ env_side        rmb     1               ; which envoy bombs next
 boss_xmin       rmb     1               ; the hull's sway range
 boss_xmax       rmb     1
 boss_edy        rmb     1               ; this boss: the envoys' row offset
+ovl_cur         rmb     1               ; the boss overlay in memory (0: none)
+ovl_pb          rmb     PB_SIZE         ; the MCX32-SD BIOS's parameter block
+ld_t            rmb     1               ; frames the last boss load took
 status_buf      rmb     BAND*ROW_BYTES  ; the status bar, ready to copy
 sr_sp           rmb     2
 sr_bsp          rmb     2
@@ -1160,7 +1164,8 @@ vc_done:        rts
 ; escorts loop around it, and explodes when its core is spent.
 
 boss_start:
-                ldaa    #BS_ENTER
+                jsr     ovl_need        ; (loaded on the map screen already;
+                ldaa    #BS_ENTER       ; this is a safety net)
                 staa    boss_state
                 ldab    area            ; this area's boss (boss_tab)
                 ldaa    #BT_SIZE
@@ -1173,7 +1178,7 @@ boss_start:
                 ldaa    BT_EHP,x
                 staa    env_hp
                 staa    env_hp+1
-                ldd     BT_HULL,x
+                ldd     OVL_BASE        ; the hull (the overlay's header)
                 std     boss+O_SPR
                 ldd     BT_CANS,x
                 std     boss_can
@@ -1209,8 +1214,7 @@ boss_start:
                 ldab    #BOSS_XMAX
                 tst     env_left
                 beq     bst_noenv
-                ldx     bm_xy           ; the envoys
-                ldd     BT_ENVOY,x
+                ldd     OVL_BASE+2      ; the envoys
                 ldx     #env1
                 std     O_SPR,x
                 ldx     #env2
@@ -1915,7 +1919,8 @@ coast_logic_f1: jsr     area_begin
                 ldx     #ship
                 ldaa    #(128-ship_W)/2
                 staa    O_X,x
-                ldaa    #208            ; in the bottom gutter
+                ldaa    #224-shipw1_H   ; in the bottom gutter (rows 192-223:
+                                        ; past 223 is BSS, so all of it fits)
                 staa    O_Y,x
                 clr     O_XF,x
                 clr     O_YF,x
@@ -1991,13 +1996,13 @@ map_show_b1:    ldaa    col_b
                 cpx     #TXT_AT(MAP_BOTTOM,MAP_COL)
                 bne     map_show_b1
                 clra                    ; the areas' labels
-                bsr     map_label
+                jsr     map_label
                 ldaa    #1
-                bsr     map_label
+                jsr     map_label
                 ldaa    #2
-                bsr     map_label
+                jsr     map_label
                 ldaa    #3
-                bsr     map_label
+                jsr     map_label
                 ldaa    col_o           ; a checkpoint at the top of each area
                 staa    txt_col
                 ldx     #TXT_AT(MAP_BOTTOM-1*MAP_SEG,MAP_COL)
@@ -2027,6 +2032,19 @@ map_show_b1:    ldaa    col_b
                 ldx     #ship_hr
                 jsr     spr_art
                 ldaa    #MAP_TIME
+                staa    mp_t
+                jsr     ovl_need        ; this area's boss, if not in memory
+                tsta                    ; (A = frames the load took): the
+                beq     map_show_b2     ; map's time includes it
+                if      DEBUG
+                jsr     ld_show
+                ldaa    ld_t
+                endif
+                cmpa    #MAP_TIME
+                bcs     map_show_f3
+                ldaa    #MAP_TIME-1
+map_show_f3:    nega
+                adda    #MAP_TIME
                 staa    mp_t
 map_show_b2:    jsr     frame_wait
                 jsr     snd_frame
@@ -2255,6 +2273,97 @@ bu_clear_b1:    std     0,x
                 cpx     #TXT_AT(BANNER_ROW+5,0)
                 bne     bu_clear_b1
 bu_done:        rts
+
+                if      DEBUG
+ld_show:                                ; debug builds: "LOAD n" on the map
+                ldaa    #TXT_WHITE      ; (frames the boss load took), for
+                staa    txt_col         ; timing real SD cards
+                ldx     #TXT_AT(186,1)
+                ldd     #s_load
+                jsr     txt_str
+                ldaa    ld_t
+                ldab    #100
+                bsr     ld_digit
+                ldab    #10
+                bsr     ld_digit
+                ldab    #1
+ld_digit:                               ; A = the rest, B = 100/10/1: one
+                stab    tx_n            ; digit at X; A = what's left
+                ldab    #'0'
+ld_digit_b1:    cmpa    tx_n
+                bcs     ld_digit_f1
+                suba    tx_n
+                incb
+                bra     ld_digit_b1
+ld_digit_f1:    psha
+                tba
+                jsr     txt_char
+                pula
+                rts
+                endif
+
+; ---------------------------------------------------------------- overlays
+; This area's boss (hull and envoy sprites) into the overlay area, unless
+; it's there already: LOADM "BOSSn" from the SD card through the
+; MCX32-SD BIOS.  Interrupts stay on, so the frame tick goes on counting:
+; A = frames it took (0: nothing loaded).  If the file can't be loaded
+; the game stops with a message (it can't go on without its boss).
+ovl_need:
+                ldab    area
+                ldaa    #BT_SIZE
+                mul
+                addd    #boss_tab+BT_OVL
+                std     bm_xy
+                ldx     bm_xy
+                ldaa    0,x
+                cmpa    ovl_cur
+                bne     ovl_need_f1
+                clra
+                rts
+ovl_need_f1:    staa    ovl_cur
+                adda    #'0'
+                staa    ovl_name+4
+                ldx     #ovl_pb         ; the parameter block: all zero but
+                ldab    #PB_SIZE        ; the name, its length and the mode
+ovl_need_b1:    clr     0,x             ; (load offset 0, no callback)
+                inx
+                decb
+                bne     ovl_need_b1
+                ldd     #ovl_name
+                std     ovl_pb+PB_NAME
+                ldaa    #5
+                staa    ovl_pb+PB_NLEN
+                ldaa    #PB_LOADM
+                staa    ovl_pb+PB_MODE
+                ldaa    frame_count
+                staa    ld_t
+                clra                    ; the SD card
+                ldab    #BIOS_LOAD
+                ldx     #ovl_pb
+                jsr     MCX_BIOS
+                bcs     ovl_err
+                ldaa    frame_count
+                suba    ld_t
+                staa    ld_t
+                ldaa    col_o           ; colours swapped?  The new sprites
+                cmpa    #TXT_ORANGE     ; too
+                beq     ovl_need_f2
+                ldx     #OVL_BASE
+                jsr     col_swap
+ovl_need_f2:    ldaa    ld_t
+                bne     ovl_need_f3     ; (at least 1: something was loaded)
+                inca
+ovl_need_f3:    rts
+ovl_err:        stab    ld_t            ; the BIOS's error code
+                clr     ovl_cur
+                jsr     snd_stop
+                ldaa    #TXT_WHITE
+                staa    txt_col
+                ldx     #TXT_AT(186,4)
+                ldd     #s_sderr
+                jsr     txt_str
+                bra     *
+ovl_name:       fcc     "BOSS1"         ; (the digit is set as it loads)
 
 ; ---------------------------------------------------------------- title
 title_draw:
@@ -2557,8 +2666,8 @@ pwv_rep:        fcb     P_FLY, 30, 0
 ; area (the map shows 3 rows per wave).  Later areas launch faster.
 areas:          fdb     area1, area2, area3, area4
 ; (Each wave: descriptor, path; count, launch interval, entry x, x step.)
-; The bosses, one row per area: envoys, envoy hits, escort waves, hull,
-; envoy sprite, core list, cannon list, the envoys' top row in the hull,
+; The bosses, one row per area: envoys, envoy hits, escort waves, the
+; overlay with its hull and envoy sprites (BOSSn.BIN), core list, cannon list, the envoys' top row in the hull,
 ; the hull's x (fixed for a fortress), the row it stops at, whether it
 ; stays put (1) or sways (0), and its box width and height (with the
 ; halo).  Core lists: a count, then CORE column, row (of its 4x4
@@ -2567,20 +2676,21 @@ areas:          fdb     area1, area2, area3, area4
 BT_ENV          equ     0
 BT_EHP          equ     1
 BT_ESC          equ     2
-BT_HULL         equ     4
-BT_ENVOY        equ     6
-BT_CORES        equ     8
-BT_CANS         equ     10
-BT_EDY          equ     12
-BT_X            equ     13
-BT_STOP         equ     14
-BT_STILL        equ     15
-BT_W            equ     16
-BT_H            equ     17
-BT_SIZE         equ     18
-BOSSROW         macro   env,ehp,esc,hull,envoy,cores,cans,erow,bx,stop,still,bw,bh
+BT_OVL          equ     4
+BT_CORES        equ     5
+BT_CANS         equ     7
+BT_EDY          equ     9
+BT_X            equ     10
+BT_STOP         equ     11
+BT_STILL        equ     12
+BT_W            equ     13
+BT_H            equ     14
+BT_SIZE         equ     15
+BOSSROW         macro   env,ehp,esc,ovl,cores,cans,erow,bx,stop,still,bw,bh
                 fcb     env, ehp
-                fdb     esc, hull, envoy, cores, cans
+                fdb     esc
+                fcb     ovl
+                fdb     cores, cans
                 fcb     erow, bx, stop, still, bw, bh
                 endm
 CORE            macro   col,row,stage,hits
@@ -2590,10 +2700,10 @@ CANNON          macro   col,row
                 fcb     boss1_PADX+col-bomb_PADX, boss1_PADY+row-bomb_PADY
                 endm
 BOSS4_X         equ     ((128-boss4_W)/2)&$FC|2 ; on boss4's one shift (2)
-boss_tab:       BOSSROW 0, 0, esc1, boss1_dsc, envoy_dsc, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H
-                BOSSROW 2, 4, esc2, boss2_dsc, envoy2_dsc, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H
-                BOSSROW 2, 6, esc3, boss3_dsc, envoy3_dsc, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H
-                BOSSROW 2, 8, esc4, boss4_dsc, envoy4_dsc, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H
+boss_tab:       BOSSROW 0, 0, esc1, 1, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H
+                BOSSROW 2, 4, esc2, 2, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H
+                BOSSROW 2, 6, esc3, 3, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H
+                BOSSROW 2, 8, esc4, 4, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H
 cores1:         fcb     1
                 CORE    10, 8, 0, 8
 cores2:         fcb     1
@@ -2682,16 +2792,18 @@ s_start:        fcc     "PRESS SPACE TO START"
                 fcb     0
 s_cont:         fcc     "SPACE CONTINUES"
                 fcb     0
+s_sderr:        fcc     "CANNOT LOAD THE BOSS FILE"
+                fcb     0
+s_load:         fcc     "LOAD "
+                fcb     0
 s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
                 fcb     0
 
 ; Every artifact sprite, for the colour swap
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
-                fdb     shipw1_dsc, shipw2_dsc, boss1_dsc, core_dsc
-                fdb     corehit_dsc, envoy_dsc, coreshut_dsc
-                fdb     boss2_dsc, envoy2_dsc, boss3_dsc, envoy3_dsc
-                fdb     boss4_dsc, envoy4_dsc, 0
+                fdb     shipw1_dsc, shipw2_dsc, core_dsc, corehit_dsc
+                fdb     coreshut_dsc, 0         ; (bosses: as they load)
 
 ; The ship's explosion: bigger and longer than an alien's
 anim_shipboom:  fdb     boom1_dsc
@@ -2847,16 +2959,21 @@ objs_end:
 #include "text.asm"
 #include "colswap.asm"
 #include "game_spr.inc"
-#include "boss3_spr.inc"
-#include "boss4_spr.inc"
-                CODE_CHECK
+; the bosses' hulls and envoys are overlays (game_ovl.inc): only their
+; sizes here
+#include "boss1_equ.inc"
+#include "boss2_equ.inc"
+#include "boss3_equ.inc"
+#include "boss4_equ.inc"
+                if      * > OVL_BASE
+                error   "the main segment runs into the boss overlay area (OVL_BASE)"
+                endif
 
 ; ---------------------------------------------------------------- low
 ; The low segment ($0400-$1FFF), loaded by LOADM along with the main one:
 ; the aliens' and explosions' sprite code and the sine table.
                 org     LOW
 #include "game_lo_spr.inc"
-#include "boss2_spr.inc"
 ; the areas' wave lists (data, here for room in the main segment)
 area1:                                  ; gentle: 6 at a time, then 8
                 fdb     saucer_dsc, path_loopL
@@ -2947,4 +3064,9 @@ area4:
 ; (the core and cannon offsets use boss1's padding)
                 if      (boss2_PADX<>1)||(boss3_PADX<>1)||(boss4_PADX<>1)||(boss4_PADY<>1)
                 error   "boss hulls need a 1-pixel halo"
+                endif
+; the arriving ship starts hidden in the bottom gutter, wholly inside it
+; (rows 192-223; a sprite drawn past row 223 writes into BSS)
+                if      (224-shipw1_H<192)||(shipw2_H<>shipw1_H)
+                error   "the warp ship must fit in the bottom gutter (32 rows)"
                 endif
