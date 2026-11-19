@@ -648,6 +648,13 @@ blue.  `bench/waves.asm` converted:
   $ADA8 (87 bytes free), low $1FED (18 free); the area wave lists moved
   to the low segment to make room.  Next: free memory (see the options
   discussed with the owner) before the title and colour screens.
+* **Colour check screen (owner's request, 2026-11-18).**  Its own screen,
+  once, right after loading (colour_check, falling through from start):
+  an orange block, "C" swaps orange and blue, SPACE (let go first) goes
+  on to the title, which no longer shows the sample and stays the same;
+  game over returns to the title only.  col_ok is gone.  make check 1a;
+  the tests' run() passes the check with a SPACE first.  Main segment
+  now ends $ADEE (17 bytes free).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

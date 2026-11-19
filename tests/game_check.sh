@@ -18,7 +18,8 @@ check() {   # name, condition (shell test)
 }
 sym() { printf '%04X' 0x$(awk '/Symbol Table/{p=1} p' $LST | tr '|' '\n' | awk -v n=$1 '$1==n{print $3}'); }
 # load the game the way a player does: LOADM from the SD card, then EXEC
-run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 "$@"; }
+# (past the colour check with SPACE, so a test's own SPACE starts a game from the title)
+run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
 memval() { grep "^mem $1" | sed -n "${2:-1}p" | awk '{print strtonum("0x"$3)}'; }
 
 SHIP=$(sym ship); MODE=$(sym mode); WARPF=$(sym warpf); AREA=$(sym area)
@@ -30,6 +31,16 @@ out=$(run frames:30 'type: ' frames:220 mem:$SHIP,1 'type:AAAAAAAAAAAAAAAAAAAAAA
 x0=$(echo "$out" | memval $SHIP 1); x1=$(echo "$out" | memval $SHIP 2)
 check "ship moves left when A is held (x $x0 -> $x1)" "[ $x1 -lt $x0 ]"
 check "play mode with normal stars" "[ $(echo "$out" | memval $MODE) -eq 0 ] && [ $(echo "$out" | memval $WARPF) -eq 1 ]"
+
+# 1a. The colour check comes once, right after loading: an orange block
+#     (C swaps it to blue), then SPACE leads to the title, without it.
+BLK=48CE    # TXT_AT(70,14): the block's first byte
+raw() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 "$@"; }
+out=$(raw mem:$BLK,4 type:C frames:90 mem:$BLK,4 'type: ' frames:60 mem:$BLK,4 mem:$SHIP,1)
+b0=$(echo "$out" | grep "^mem $BLK" | sed -n 1p | cut -d: -f2 | tr -d ' ')
+b1=$(echo "$out" | grep "^mem $BLK" | sed -n 2p | cut -d: -f2 | tr -d ' ')
+b2=$(echo "$out" | grep "^mem $BLK" | sed -n 3p | cut -d: -f2 | tr -d ' ')
+check "colour check after loading: orange block ($b0), C swaps it ($b1), SPACE goes to the title ($b2)" "[ $b0 = AAAAAAAA ] && [ $b1 = 55555555 ] && [ $b2 = 00000000 ]"
 
 # 1b. The status bar is on screen: rows 0-6 match status_buf (sampled a
 #     few times during play, as sprites cross it).

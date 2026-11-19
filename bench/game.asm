@@ -119,7 +119,6 @@ gover           rmb     1               ; game over: back to the title
 col_o           rmb     1               ; the orange and blue masks (swapped
 col_b           rmb     1               ; by C on the title screen)
 keyprev         rmb     1
-col_ok          rmb     1               ; the colours were confirmed (first game)
 area            rmb     1               ; 0-3
 wv_index        rmb     1               ; waves done in this area (the map)
 mode_t          rmb     1
@@ -208,6 +207,36 @@ start_b2:       clr     0,x
                 jsr     frame_init
 
 ; ---------------------------------------------------------------- title
+; The colour check, once after loading: a block that should look orange
+; (C swaps orange and blue if it doesn't); SPACE goes on to the title.
+colour_check:
+                jsr     col_draw
+cc2_loop:       jsr     frame_wait
+                jsr     snd_frame
+                jsr     kbd_read
+                jsr     key_c           ; C: swap the colours
+                cmpa    keyprev
+                beq     cc2_fire
+                staa    keyprev
+                tsta
+                beq     cc2_fire
+                ldx     #all_sprites
+                jsr     col_swap
+                ldaa    col_o
+                ldab    col_b
+                staa    col_b
+                stab    col_o
+                jsr     col_draw
+cc2_fire:       ldaa    joy
+                bita    #J_FIRE
+                beq     cc2_loop
+cc2_up:         jsr     frame_wait      ; SPACE let go first (or the title
+                jsr     kbd_read        ; would start a game at once)
+                ldaa    joy
+                bita    #J_FIRE
+                bne     cc2_up
+
+; The title screen: unchanging; SPACE starts a game
 title:
                 jsr     snd_stop
                 jsr     title_draw
@@ -215,28 +244,12 @@ t_loop:
                 jsr     frame_wait
                 jsr     snd_frame
                 jsr     kbd_read
-                tst     col_ok          ; asked only before the first game
-                bne     t_loop_f1
-                jsr     key_c           ; C: swap the colours
-                cmpa    keyprev
-                beq     t_loop_f1
-                staa    keyprev
-                tsta
-                beq     t_loop_f1
-                ldx     #all_sprites
-                jsr     col_swap
-                ldaa    col_o
-                ldab    col_b
-                staa    col_b
-                stab    col_o
-                jsr     title_draw
-t_loop_f1:      ldaa    joy
+                ldaa    joy
                 bita    #J_FIRE
                 beq     t_loop
 
 ; ---------------------------------------------------------------- a game
 game_start:
-                inc     col_ok          ; the colours are settled now
                 jsr     cls
                 jsr     stars_init
                 ldx     #objs           ; empty every object slot
@@ -2256,27 +2269,6 @@ title_draw:
                 ldx     #TXT_AT(50,5)
                 ldd     #s_sub
                 jsr     txt_str
-                tst     col_ok          ; the colour sample: only before the
-                bne     td_nosample     ; first game
-                ldx     #TXT_AT(92,3)   ; a block that should look orange
-                ldab    #10
-title_draw_b1:  ldaa    col_o
-                staa    0,x
-                staa    1,x
-                staa    2,x
-                pshb
-                ldab    #ROW_BYTES
-                abx
-                pulb
-                decb
-                bne     title_draw_b1
-                ldx     #TXT_AT(92,7)
-                ldd     #s_sample1
-                jsr     txt_str
-                ldx     #TXT_AT(100,7)
-                ldd     #s_sample2
-                jsr     txt_str
-td_nosample:
                 ldaa    col_b
                 staa    txt_col
                 ldx     #TXT_AT(140,6)
@@ -2286,6 +2278,35 @@ td_nosample:
                 staa    txt_col
                 ldx     #TXT_AT(165,2)
                 ldd     #s_keys
+                jmp     txt_str
+
+col_draw:                               ; the colour check screen
+                jsr     cls
+                ldx     #TXT_AT(70,14)  ; a block that should look orange
+                ldab    #12
+col_draw_b1:    ldaa    col_o
+                staa    0,x
+                staa    1,x
+                staa    2,x
+                staa    3,x
+                pshb
+                ldab    #ROW_BYTES
+                abx
+                pulb
+                decb
+                bne     col_draw_b1
+                ldaa    #TXT_WHITE
+                staa    txt_col
+                ldx     #TXT_AT(92,2)
+                ldd     #s_sample1
+                jsr     txt_str
+                ldx     #TXT_AT(102,1)
+                ldd     #s_sample2
+                jsr     txt_str
+                ldaa    col_b
+                staa    txt_col
+                ldx     #TXT_AT(130,8)
+                ldd     #s_cont
                 jmp     txt_str
 
 key_c:                                  ; A = 1 while C is held
@@ -2653,11 +2674,13 @@ s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_sub:          fcc     "A TEST OF THE MC-10 ENGINE"
                 fcb     0
-s_sample1:      fcc     "THIS BLOCK SHOULD BE"
+s_sample1:      fcc     "THIS BLOCK SHOULD BE ORANGE"
                 fcb     0
-s_sample2:      fcc     "ORANGE: C SWAPS COLOURS"
+s_sample2:      fcc     "IF IT IS BLUE, PRESS C TO SWAP"
                 fcb     0
 s_start:        fcc     "PRESS SPACE TO START"
+                fcb     0
+s_cont:         fcc     "SPACE CONTINUES"
                 fcb     0
 s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
                 fcb     0
