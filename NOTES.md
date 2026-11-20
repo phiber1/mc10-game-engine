@@ -769,7 +769,11 @@ blue.  `bench/waves.asm` converted:
     hits per boss core, +1 per envoy.  Bomb speed unchanged (the bomb's
     halo is 3 rows).  Round 1 as designed.  Checks 4i and 5c (hardest
     settings 3.4% over budget in normal play, limit 5% like the boss
-    fights; if it feels slow, bomb_gap min 4).
+    fights; if it feels slow, bomb_gap min 4).  Even rounds swap the
+    aliens' orange and blue (owner: the old arcade trick): al_colours
+    runs col_swap on al_sprites (saucer, dart, orbiter) when the round's
+    parity differs from al_flip; the title resets it, so the cast shows
+    its own colours; a colour-check swap on top still combines right.
   * **File names:** GAME.BIN -> STARFALL.BIN, and the boss overlays with
     an SF or STAR prefix (e.g. SFBOSS1.BIN), so users see what belongs to
     the game.

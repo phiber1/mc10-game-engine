@@ -276,14 +276,17 @@ check "a game begins with a banner: $rt" "[ $bp = $(sym s_round) ] && [ \"$rt\" 
 # 4i. Each round is harder, up to round 5: round 1 as designed (bomb
 #     spray 48 of 128 frames, 7 between bombs, cannons every 22, envoys
 #     every 16); the finale's new round 2 takes a step (60, 6, 19, 14);
-#     from round 5 on, the hardest (96, 3, 10, 8).
+#     from round 5 on, the hardest (96, 3, 10, 8).  Even rounds swap the
+#     aliens' colours.
 DV=$(sym spray_on)    # spray_on, bomb_gap, boss_fire, env_fire follow it
 dvals() { echo "$1" | grep "^mem $DV" | sed -n "${2}p" | cut -d: -f2 | awk '{printf "%d %d %d %d", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3), strtonum("0x"$4)}'; }
-out=$(run frames:30 'type: ' frames:200 mem:$DV,4 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4)
-d1=$(dvals "$out" 1); d2=$(dvals "$out" 2)
-out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$(sym round),1)
-d6=$(dvals "$out" 1)
+AF=$(sym al_flip)
+out=$(run frames:30 'type: ' frames:200 mem:$DV,4 mem:$AF,1 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$AF,1)
+d1=$(dvals "$out" 1); d2=$(dvals "$out" 2); f1=$(echo "$out" | memval $AF 1); f2=$(echo "$out" | memval $AF 2)
+out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$(sym round),1 mem:$AF,1)
+d6=$(dvals "$out" 1); f6=$(echo "$out" | memval $AF 1)
 check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '48 7 22 16' ] && [ \"$d2\" = '60 6 19 14' ] && [ \"$d6\" = '96 3 10 8' ]"
+check "even rounds swap the aliens' colours (rounds 1, 2, 6: $f1 $f2 $f6)" "[ $f1 -eq 0 ] && [ $f2 -eq 1 ] && [ $f6 -eq 1 ]"
 
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.

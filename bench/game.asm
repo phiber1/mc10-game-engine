@@ -152,6 +152,7 @@ bg_m            rmb     1               ; ... the row's mask
 fin_t           rmb     2               ; the finale's countdown
 round           rmb     1               ; 1, 2 ... (each fortress begins another)
 dlev            rmb     1               ; difficulty: round - 1, at most DIFF_MAX
+al_flip         rmb     1               ; 1: the aliens' colours are swapped
 dgap            rmb     1               ; ... dlev x 2 (launch gaps, core hits)
 spray_on        rmb     1               ; ... frames of each bomb cycle that spray
 bomb_gap        rmb     1               ; ... frames between bombs at least
@@ -287,7 +288,9 @@ title:
                 beq     title_f1
                 clr     hi_new
                 jsr     hi_save
-title_f1:       jsr     title_draw
+title_f1:       clra                    ; the cast in its own colours
+                jsr     al_colours
+                jsr     title_draw
                 inc     st_behind       ; the star field, behind the title
                 jsr     stars_init
 t_loop:
@@ -2054,6 +2057,10 @@ firework_f1:    stx     obj
 ; frames apart less, waves launched 2 frames closer, two more hits for
 ; each boss core and one more for each envoy.  Round 1 is as designed.
 set_diff:
+                ldaa    round           ; even rounds: the aliens' orange and
+                anda    #1              ; blue swapped (the old arcade trick)
+                eora    #1
+                bsr     al_colours
                 ldaa    round
                 deca
                 cmpa    #DIFF_MAX
@@ -2080,6 +2087,14 @@ set_diff_f1:    staa    dlev
                 adda    #ENV_FIRE
                 staa    env_fire
                 rts
+
+al_colours:                             ; A = 1: aliens swapped, 0: as drawn
+                cmpa    al_flip         ; (col_swap swaps them; a colour
+                beq     al_colours_r    ; check swap on top still works)
+                staa    al_flip
+                ldx     #al_sprites
+                jmp     col_swap
+al_colours_r:   rts
 
 round_banner:                           ; "ROUND n" (the current round)
                 ldaa    round
@@ -3357,6 +3372,7 @@ s_keys:         fcc     "ARROWS/WASZ MOVE  SPACE FIRES"
                 fcb     0
 
 ; Every artifact sprite, for the colour swap
+al_sprites:     fdb     saucer_dsc, dart_dsc, orbiter_dsc, 0
 all_sprites:    fdb     ship_dsc, saucer_dsc, dart_dsc, orbiter_dsc, shot_dsc
                 fdb     bomb_dsc, boom1_dsc, boom2_dsc, boom3_dsc, boom4_dsc
                 fdb     shipw1_dsc, shipw2_dsc, core_dsc, corehit_dsc
