@@ -757,11 +757,10 @@ blue.  `bench/waves.asm` converted:
     crowded with it).  check 1d.  The bar's labels are drawn once per game (status_labels); a score
     change rewrites only the digits (HI only when beaten): drawing HI
     too had pushed the normal-play budget to 2.3% over; now 0.5%.  A top-five table with initials could follow.
-  * **PI-KEY10 support** (popular: modern keyboards, and two Atari
-    2600-style joysticks): find out how a program reads its joysticks
-    (keyboard matrix emulation or its own port) before designing; the
-    controls are in kbd_read / joy.  Darren Ottery's games support its
-    joysticks (owner), so their code shows how.
+  * **Done: PI-KEY10.**  It drives a switch matrix in place of the MC-10's
+    keyboard, so joysticks arrive as key presses; its default for
+    Joystick 1 is W, A, S, Z and SPACE (the owner checked pikey.tech),
+    exactly what kbd_read reads.  Supported as is, nothing to change.
   * **Difficulty rising each round** (round counts from 1; nothing
     changes per round yet): e.g. faster aliens or bombs, more bombs,
     more boss hits.
