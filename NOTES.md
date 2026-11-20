@@ -802,6 +802,12 @@ blue.  `bench/waves.asm` converted:
   owner's favourites stay: boss 2 and the space fortress.  The hardest
   rounds' bomb gap now stops at 4 frames (3 sat on the edge of the
   budget: 3.4-5.9% over between builds; now 1.2%).
+* **Extra ship beeps and a sound board (2026-11-19).**  fx_extra: E6
+  three times (priority 8: over game sounds, under jingles).  The sound
+  effects live in bench/game_sfx.inc; bench/sfx.asm (make run-sfx) plays
+  any of them from a list.  Budget checks now fix the random seeds at
+  game start and remove STARFALL.HI first, so every build plays the same
+  game (the figures had wandered 0.4-2.3% with no real change).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
