@@ -41,6 +41,10 @@ DBGPORT         equ     $BE00
 ; with A = device (0 = SD card), B = function, X = a parameter block;
 ; returns carry clear and B = 0, or carry set and B = an error code
 MCX_BIOS        equ     $2000
+BIOS_CLOSE      equ     0               ; close a data file (PB_MODE bit 7: written)
+BIOS_OPEN       equ     $42             ; open a data file (fn 2; bit 6 as BASIC)
+BIOS_READ       equ     6               ; read PB_LEN bytes to PB_BUF
+BIOS_WRITE      equ     12              ; write PB_LEN bytes from PB_BUF
 BIOS_LOAD       equ     22              ; LOAD a file (mode in PB_MODE)
 PB_SIZE         equ     18              ; parameter block: its size,
 PB_NAME         equ     4               ; ... the name's address,
@@ -48,4 +52,7 @@ PB_MODE         equ     10              ; ... the mode (PB_LOADM: a DECB binary,
 PB_LOADM        equ     2               ;     to its own addresses + PB_BUF),
 PB_NLEN         equ     11              ; ... the name's length,
 PB_BUF          equ     12              ; ... buffer / load offset,
+PB_LEN          equ     14              ; ... length (read / write)
 PB_CALLBACK     equ     16              ; ... callback (0 = none)
+PB_IN           equ     $40             ; PB_MODE for a data file: input,
+PB_OUT          equ     $80             ; ... output (| the file number 1-2)

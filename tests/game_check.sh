@@ -50,6 +50,22 @@ out=$(raw 'type: ' frames:20 mem:4000,6144 frames:900 mem:4000,6144 frames:900 m
 dmg=$(echo "$out" | grep '^mem 4000' | cut -d: -f2 | awk '{for(i=1;i<=NF;i++) v[NR,i]=$i} END{for(i=1;i<=6144;i++) if(v[1,i]!="00" && v[2,i]!="00" && v[3,i]!="00" && (v[1,i]!=v[2,i] || v[2,i]!=v[3,i])) d++; print d+0}')
 check "the title's stars pass behind it (title bytes changed: $dmg)" "[ $dmg -eq 0 ]"
 
+# 1d. The high score: no STARFALL.HI on the card (a first run) means 0;
+#     a game ending with a record writes the file ("SF", the BCD score, a
+#     checksum); the next start reads it back (and shows it).
+HS=build/sd-hi; mkdir -p $HS && cp $BIN $HS/GAME.BIN && for n in 1 2 3 4; do cp build/ovl$n.bin $HS/BOSS$n.BIN; done
+rm -f $HS/STARFALL.HI
+HSV=$(sym hiscore)
+hrun() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$HS frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
+out=$(hrun mem:$HSV,3 'type: ' frames:300 poke:$(sym score),012340 poke:$(sym status_t),01 frames:5 mem:$HSV,3 \
+      poke:$(sym lives),01 poke:$(sym dead),01 poke:$(sym dead_t),02 frames:500)
+h0=$(echo "$out" | grep "^mem $HSV" | sed -n 1p | cut -d: -f2 | tr -d ' ')
+h1=$(echo "$out" | grep "^mem $HSV" | sed -n 2p | cut -d: -f2 | tr -d ' ')
+file=$(od -An -tx1 $HS/STARFALL.HI 2>/dev/null | tr -d ' \n')
+out=$(hrun mem:$HSV,3 'type: ' frames:300 mem:$(sym status_buf),224)
+h2=$(echo "$out" | grep "^mem $HSV" | cut -d: -f2 | tr -d ' ')
+check "high score: first run $h0, beaten $h1, saved ($file), read back $h2" "[ $h0 = 000000 ] && [ $h1 = 012340 ] && [ \"$file\" = 5346012340fd ] && [ $h2 = 012340 ]"
+
 # 1b. The status bar is on screen: rows 0-6 match status_buf (sampled a
 #     few times during play, as sprites cross it).
 SB=$(sym status_buf); BAND_BYTES=224

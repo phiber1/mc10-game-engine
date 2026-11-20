@@ -33,6 +33,8 @@ SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
 WAVE_GAP        equ     90              ; frames between waves
 MAX_ALIVE       equ     8               ; live aliens on screen at most
+HI_SIZE         equ     6               ; STARFALL.HI: its bytes,
+HI_FILE         equ     1               ; ... its file number (SD: 1-2)
 FORT_ALIVE      equ     1               ; ... in the fortress fight (it's busy)
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
@@ -125,6 +127,9 @@ boss_state      rmb     1               ; BS_NONE ... BS_DEFEATED
 
                 org     BSS             ; ordinary RAM: the rest
 score           rmb     3               ; BCD, 6 digits
+hiscore         rmb     3               ; the high score (BCD), STARFALL.HI
+hi_new          rmb     1               ; beaten this game: save it
+hi_buf          rmb     HI_SIZE         ; the file: "SF", score, checksum
 lives           rmb     1
 dead_t          rmb     1
 gover           rmb     1               ; game over: back to the title
@@ -239,6 +244,7 @@ start_b2:       clr     0,x
 ; ---------------------------------------------------------------- title
 ; The colour check, once after loading: a block that should look orange
 ; (C swaps orange and blue if it doesn't); SPACE goes on to the title.
+                jsr     hi_load         ; the high score from the SD card
 colour_check:
                 jsr     col_draw
 cc2_loop:       jsr     frame_wait
@@ -269,7 +275,11 @@ cc2_up:         jsr     frame_wait      ; SPACE let go first (or the title
 ; The title screen: unchanging; SPACE starts a game
 title:
                 jsr     snd_stop
-                jsr     title_draw
+                tst     hi_new          ; a new record: save it
+                beq     title_f1
+                clr     hi_new
+                jsr     hi_save
+title_f1:       jsr     title_draw
                 inc     st_behind       ; the star field, behind the title
                 jsr     stars_init
 t_loop:
@@ -2351,28 +2361,33 @@ status_update_b1:
                 inx
                 cpx     #status_buf+BAND*ROW_BYTES
                 bne     status_update_b1
+                jsr     hi_check        ; a new record?  (HI follows it)
                 ldaa    col_o
                 staa    txt_col
-                ldx     #BUF_AT(1,1)
+                ldx     #BUF_AT(1,0)    ; SCORE 000000  HI 000000  SHIPS 3
                 ldd     #s_score
                 jsr     txt_str
-                ldaa    #TXT_WHITE
-                staa    txt_col
-                ldx     #BUF_AT(1,7)
-                ldaa    #3
-                staa    tx_n
-                ldd     #score
-                jsr     txt_bcd
-                ldaa    col_o
-                staa    txt_col
-                ldx     #BUF_AT(1,24)
+                ldx     #BUF_AT(1,14)
+                ldd     #s_hi
+                jsr     txt_str
+                ldx     #BUF_AT(1,25)
                 ldd     #s_ships
                 jsr     txt_str
                 ldaa    #TXT_WHITE
                 staa    txt_col
+                ldx     #BUF_AT(1,6)
+                ldaa    #3
+                staa    tx_n
+                ldd     #score
+                jsr     txt_bcd
+                ldx     #BUF_AT(1,17)
+                ldaa    #3
+                staa    tx_n
+                ldd     #hiscore
+                jsr     txt_bcd
                 ldaa    lives
                 adda    #'0'
-                ldx     #BUF_AT(1,30)
+                ldx     #BUF_AT(1,31)
                 jsr     txt_char
                 inc     sm_dirty        ; and show it
 su_done:        rts
@@ -2504,6 +2519,123 @@ ld_digit_f1:    psha
                 rts
                 endif
 
+; ---------------------------------------------------------------- high score
+; The high score lives in STARFALL.HI on the SD card: "SF", the score
+; (3 BCD bytes), a checksum (the sum of the five).  It's read at start-up
+; and written when a game ends with a new record, through the BIOS's
+; data-file calls (as BASIC's OPEN / PRINT# / CLOSE).  A missing or bad
+; file means 0; card errors are ignored (the game never stops for it).
+
+hi_check:                               ; score above the record: it's the
+                ldaa    score           ; record now (compared as BCD, high
+                cmpa    hiscore         ; byte first)
+                bhi     hi_check_f1
+                bne     hi_check_r
+                ldaa    score+1
+                cmpa    hiscore+1
+                bhi     hi_check_f1
+                bne     hi_check_r
+                ldaa    score+2
+                cmpa    hiscore+2
+                bls     hi_check_r
+hi_check_f1:    ldd     score
+                std     hiscore
+                ldaa    score+2
+                staa    hiscore+2
+                ldaa    #1
+                staa    hi_new
+hi_check_r:     rts
+
+hi_pb:                                  ; the parameter block: zero, then the
+                ldx     #ovl_pb         ; name and A = access | file number
+                ldab    #PB_SIZE
+hi_pb_b1:       clr     0,x
+                inx
+                decb
+                bne     hi_pb_b1
+                staa    ovl_pb+PB_MODE
+                ldd     #s_hifile
+                std     ovl_pb+PB_NAME
+                ldaa    #S_HIFILE_LEN
+                staa    ovl_pb+PB_NLEN
+                ldd     #hi_buf
+                std     ovl_pb+PB_BUF
+                ldd     #HI_SIZE
+                std     ovl_pb+PB_LEN
+                rts
+
+hi_bios:                                ; B = function: call the BIOS (SD)
+                clra
+                ldx     #ovl_pb
+                jmp     MCX_BIOS
+
+hi_load:
+                ldaa    #HI_FILE        ; (close the handle first, as BASIC
+                jsr     hi_pb           ; does; errors ignored)
+                ldab    #BIOS_CLOSE
+                jsr     hi_bios
+                ldaa    #PB_IN|HI_FILE
+                jsr     hi_pb
+                ldab    #BIOS_OPEN
+                jsr     hi_bios
+                bcs     hi_load_r       ; no file (the first run): 0
+                ldab    #BIOS_READ      ; (a short read is an error: then
+                jsr     hi_bios         ; the checks below fail)
+                ldaa    #HI_FILE
+                staa    ovl_pb+PB_MODE
+                ldab    #BIOS_CLOSE
+                jsr     hi_bios
+                ldaa    hi_buf          ; ours, and intact?
+                cmpa    #'S'
+                bne     hi_load_r
+                ldaa    hi_buf+1
+                cmpa    #'F'
+                bne     hi_load_r
+                bsr     hi_sum
+                cmpa    hi_buf+5
+                bne     hi_load_r
+                ldd     hi_buf+2
+                std     hiscore
+                ldaa    hi_buf+4
+                staa    hiscore+2
+hi_load_r:      rts
+
+hi_sum:                                 ; A = the sum of hi_buf's first five
+                ldx     #hi_buf
+                clra
+                ldab    #5
+hi_sum_b1:      adda    0,x
+                inx
+                decb
+                bne     hi_sum_b1
+                rts
+
+hi_save:
+                ldd     #'S'*256+'F'    ; the file's bytes
+                std     hi_buf
+                ldd     hiscore
+                std     hi_buf+2
+                ldaa    hiscore+2
+                staa    hi_buf+4
+                bsr     hi_sum
+                staa    hi_buf+5
+                ldaa    #HI_FILE
+                jsr     hi_pb
+                ldab    #BIOS_CLOSE
+                jsr     hi_bios
+                ldaa    #PB_OUT|HI_FILE ; open for output (the BIOS creates it
+                jsr     hi_pb           ; first if it's new)
+                ldab    #BIOS_OPEN
+                jsr     hi_bios
+                bcs     hi_save_r
+                ldab    #BIOS_WRITE
+                jsr     hi_bios
+                ldaa    #PB_OUT|HI_FILE ; close (an output file: 'E')
+                staa    ovl_pb+PB_MODE
+                ldab    #BIOS_CLOSE
+                jsr     hi_bios
+hi_save_r:      rts
+
 ; ---------------------------------------------------------------- overlays
 ; This area's boss (hull and envoy sprites) into the overlay area, unless
 ; it's there already: LOADM "BOSSn" from the SD card through the
@@ -2578,6 +2710,18 @@ title_draw:
                 ldx     #TXT_AT(12,4)   ; the name, big: 8 letters of 3 bytes
                 ldd     #s_title
                 jsr     big_str
+                ldaa    col_o           ; the high score
+                staa    txt_col
+                ldx     #TXT_AT(46,7)
+                ldd     #s_high
+                jsr     txt_str
+                ldaa    #TXT_WHITE
+                staa    txt_col
+                ldx     #TXT_AT(46,18)
+                ldaa    #3
+                staa    tx_n
+                ldd     #hiscore
+                jsr     txt_bcd
                 ldaa    col_o
                 staa    txt_col
                 ldx     #TXT_AT(56,9)
@@ -3101,6 +3245,12 @@ anim_boom:      fdb     boom1_dsc
 ; Text.  Banners: fdb screen address, then the text (centred).
 s_score:        fcc     "SCORE"
                 fcb     0
+s_hi:           fcc     "HI"
+                fcb     0
+s_high:         fcc     "HIGH SCORE"
+                fcb     0
+s_hifile:       fcc     "STARFALL.HI"
+S_HIFILE_LEN    equ     *-s_hifile
 s_ships:        fcc     "SHIPS"
                 fcb     0
 s_player1:      fdb     TXT_AT(BANNER_ROW,12)

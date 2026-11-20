@@ -745,11 +745,16 @@ blue.  `bench/waves.asm` converted:
   Only WARPERs warp: boss 1's escort saucers fly path_loopL, not
   path_circle (the owner noticed LOOPER and WARPER sharing moves).
 * **TODO (owner, 2026-11-18), if the code fits:**
-  * **High score file on the SD card**, as other recent MC-10 games do,
-    with a name unique to the game (e.g. STARFALL.HI).  The BIOS can
-    LOAD/SAVE raw memory (fn 22/24, mode 8) or open, read and write a
-    data file (fn 2/6/12, see vmc10-linux docs/MCX32-SD_protocol.md);
-    needs a table (and name entry?) and a missing-file case (first run).
+  * **Done (2026-11-19): high score file.**  STARFALL.HI on the card:
+    "SF", the BCD score, a checksum (sum of the five), 6 bytes.  Read
+    once at start-up (hi_load; missing or bad: 0), written when a game
+    with a record ends (hi_save, from title), through the BIOS's
+    data-file calls as BASIC's OPEN/PRINT#/CLOSE do (close 'D' first,
+    open fn 2 with B=$42, PB_IN/PB_OUT | file 1, read fn 6 / write fn
+    12, close fn 0); card errors ignored.  Status bar: SCORE 000000  HI
+    000000  SHIPS 3 (exactly 32 columns; HI follows a new record live,
+    hi_check in status_update); the title shows HIGH SCORE under the
+    logo.  check 1d.  A top-five table with initials could follow.
   * **PI-KEY10 support** (popular: modern keyboards, and two Atari
     2600-style joysticks): find out how a program reads its joysticks
     (keyboard matrix emulation or its own port) before designing; the
