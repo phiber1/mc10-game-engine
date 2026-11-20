@@ -828,6 +828,16 @@ blue.  `bench/waves.asm` converted:
   sweep loses ~4 ships in two minutes instead of 8-9 (three seeds); a
   parked ship is still lost within 30 s.  The normal-play budget sits at
   1.8% (slower bombs stay on screen longer).
+* **Sortie bonus (owner's idea, 2026-11-20).**  A wave destroyed whole,
+  of its own type only, none of it leaving through the bottom, the kills
+  at most SORTIE_GAP (180 frames) apart, the ship not lost, not a boss's
+  escorts: 10 x the alien's value (100 x the round) and fx_bing
+  ("ba-BING!", A5 then a ringing D6; on the sound board).  A sortie
+  starts at its wave's first launch (sortie_new; it doesn't cancel one
+  still being finished off); another type's kill breaks it only after
+  its first kill (stragglers from the last wave don't).  Tracked by
+  alien type (no spare byte per alien), so a straggler of the same type
+  from the previous wave can count towards the next.  Check 4k.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

@@ -22,6 +22,8 @@ sym() { printf '%04X' 0x$(awk '/Symbol Table/{p=1} p' $LST | tr '|' '\n' | awk -
 # (past the colour check with SPACE, so a test's own SPACE starts a game from the title)
 run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
 memval() { grep "^mem $1" | sed -n "${2:-1}p" | awk '{print strtonum("0x"$3)}'; }
+# fixed random seeds, poked as a game starts (see the budget checks)
+SEEDS="poke:$(sym seed),A5C3 poke:$(sym st_seed),5A3C"
 
 SHIP=$(sym ship); MODE=$(sym mode); WARPF=$(sym warpf); AREA=$(sym area)
 ALIENS=$(sym aliens); SHOTS_END=$(sym shots_end); AREA_DONE=$(sym area_done); ALIVE=$(sym alive)
@@ -166,7 +168,7 @@ check "area clear leads to area 2, back in play" "[ $(echo "$out" | memval $AREA
 #     takes over (it used to nudge down and right).  Art top = y + PADY.
 SD1=$(sym ship_dsc); s=""; for i in $(seq 1 160); do s="$s frames:1 mem:$SHIP,4 mem:$(printf %04X $((0x$SHIP+8))),2"; done
 out=$(run frames:30 'type: ' frames:300 poke:$SHIP,3D "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:20 $s)
-jm=$(echo "$out" | grep '^mem' | paste - - | awk -v sd=$SD1 '{x=strtonum("0x"$3); y=strtonum("0x"$5); d=$9$10; t=y+(d==sd?2:6); if(NR>1 && py<150){dx=x-px; if(dx<0)dx=-dx; if(dx>mx)mx=dx; dy=t-pt; if(pd!=d && pd!="" && (dy>1||dy< -5)) bad++} px=x; py=y; pt=t; pd=d} END{print mx+0, bad+0}')
+jm=$(echo "$out" | grep '^mem' | paste - - | awk -v sd=$SD1 '{x=strtonum("0x"$3); y=strtonum("0x"$5); d=$9$10; t=y+(d==sd?2:6); if(NR>1 && py<150){dx=x-px; if(dx<0)dx=-dx; if(dx>mx)mx=dx; dy=t-pt; if(pd==sd && d!=sd && (dy>1||dy< -5)) bad++} px=x; py=y; pt=t; pd=d} END{print mx+0, bad+0}')
 set -- $jm
 check "the ship blasts off without a nudge (largest step across $1, drops $2)" "[ $1 -le 1 ] && [ $2 -eq 0 ]"
 
@@ -314,6 +316,19 @@ out=$(run frames:30 'type: ' frames:250 poke:$(sym round),03 poke:$LIVESV,09 "ty
 sc=$(echo "$out" | grep "^mem $SCV" | cut -d: -f2 | tr -d ' '); scn=$(echo $sc | sed 's/^0*//'); scn=${scn:-0}
 check "round 3 aliens are worth 30 (score $sc, a multiple of 30)" "[ $scn -gt 0 ] && [ \$(($scn % 30)) -eq 0 ]"
 
+# 4k. The sortie bonus: area 1's first wave (six saucers coming straight
+#     down at x 30) destroyed quickly from below, none escaping, earns 10
+#     x their value (100 in round 1: 60 + 100), and the next wave gets its
+#     own sortie; a boss's escorts get none.
+SON=$(sym sortie_on); sps=$(printf '%*s' 250 '')
+s=""; for i in $(seq 1 60); do s="$s frames:10 poke:$IV,F0 poke:$SHIP,1C mem:$SON,1 mem:$SCV,3"; done
+out=$(run frames:30 'type: ' $SEEDS frames:120 poke:$SHIP,1C "type:$sps" $s)
+sb=$(echo "$out" | grep "^mem $SCV" | cut -d: -f2 | tr -d ' ' | grep -c '^000160$')
+on2=$(echo "$out" | grep '^mem' | paste - - | awk '{s=$4$5$6; if(s>="000160" && $3=="01") n++} END{print n+0}')
+check "a whole sortie destroyed quickly earns its bonus (score 160 seen $sb times; next sortie live $on2 samples)" "[ $sb -gt 0 ] && [ $on2 -gt 0 ]"
+out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 $keep $keep frames:400 mem:$(sym boss_state),1 mem:$SON,1)
+check "no sortie bonus for a boss's escorts (boss state $(echo "$out" | memval $(sym boss_state) 1), sortie $(echo "$out" | memval $SON 1))" "[ $(echo "$out" | memval $(sym boss_state) 1) -eq 2 ] && [ $(echo "$out" | memval $SON 1) -eq 0 ]"
+
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.
 #     (The bug: area 1's first wave dropped bombs at fixed points of its
@@ -334,7 +349,6 @@ check "an unmoving ship is lost within 30 s ($times)" "[ -z \"$slow\" ]"
 # counter, so any code change played a different game and the figure
 # wandered by a percent or two), and with no high score file on the card
 # (a high score changes what the status bar draws).
-SEEDS="poke:$(sym seed),A5C3 poke:$(sym st_seed),5A3C"
 rm -f $SD/STARFALL.HI
 
 # 5. The frame budget holds in realistic play: two minutes of sweeping

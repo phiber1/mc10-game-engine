@@ -34,6 +34,7 @@ SHIP_YMAX       equ     192-ship_H
 FIRE_DELAY      equ     8
 WAVE_GAP        equ     90              ; frames between waves
 MAX_ALIVE       equ     8               ; live aliens on screen at most
+SORTIE_GAP      equ     180             ; a sortie bonus: kills at most 3 s apart
 HI_SIZE         equ     6               ; STARFALL.HI: its bytes,
 HI_FILE         equ     1               ; ... its file number (SD: 1-2)
 FORT_ALIVE      equ     1               ; ... in the fortress fight (it's busy)
@@ -132,6 +133,11 @@ boss_state      rmb     1               ; BS_NONE ... BS_DEFEATED
 score           rmb     3               ; BCD, 6 digits
 hiscore         rmb     3               ; the high score (BCD), STARFALL.HI
 next_bonus      rmb     3               ; the next extra ship's score (BCD)
+sortie_on       rmb     1               ; the wave flying can still earn its bonus
+sortie_dsc      rmb     2               ; ... its alien type,
+sortie_left     rmb     1               ; ... aliens of it still to destroy,
+sortie_hit      rmb     1               ; ... one destroyed already,
+sortie_t        rmb     1               ; ... frames since the last
 hi_new          rmb     1               ; beaten this game: save it
 hi_buf          rmb     HI_SIZE         ; the file: "SF", score, checksum
 lives           rmb     1               ; ships in reserve (not the one flying)
@@ -406,13 +412,14 @@ wave_begin:
                 staa    wv_timer
                 rts
 
+wl_done0:       rts
 wave_logic:
                 tst     mode
-                bne     wl_done
+                bne     wl_done0
                 tst     area_done
-                bne     wl_done
+                bne     wl_done0
                 dec     wv_timer
-                bne     wl_done
+                bne     wl_done0
                 ldaa    wv_left
                 beq     wl_next         ; all launched: wait for the next wave
                 ldaa    alive           ; at most alive_max flying at once:
@@ -466,7 +473,12 @@ wl_xok:         stab    wv_x
                 bcs     wl_nohop
                 ldx     obj
                 jsr     hop_flag
-wl_nohop:       dec     wv_left
+wl_nohop:       ldx     wv_ptr          ; the wave's first launch: its sortie
+                ldaa    wv_left
+                cmpa    W_COUNT,x
+                bne     wl_sortie_f1
+                jsr     sortie_new
+wl_sortie_f1:   dec     wv_left
                 inc     alive
 wl_done:        rts
 wl_next:                                ; next wave when at most 2 remain
@@ -498,7 +510,16 @@ wl_launch:      stx     wv_ptr
 
 ; ---------------------------------------------------------------- aliens
 aliens_logic:
-                ldaa    bomb_cd         ; bomb rhythm
+                tst     sortie_on       ; the sortie: kills too far apart end
+                beq     al_sortie_f1    ; it (counted from the first)
+                tst     sortie_hit
+                beq     al_sortie_f1
+                inc     sortie_t
+                ldaa    sortie_t
+                cmpa    #SORTIE_GAP
+                bcs     al_sortie_f1
+                clr     sortie_on
+al_sortie_f1:   ldaa    bomb_cd         ; bomb rhythm
                 beq     aliens_logic_f1
                 dec     bomb_cd
 aliens_logic_f1:
@@ -627,6 +648,8 @@ al_live_f2:     ldd     O_Y,x           ; through the bottom: back in at the top
                 bcs     al_next
                 cmpa    #224
                 bcc     al_next
+                jsr     sortie_leave    ; (out of the sortie's reach)
+                ldx     obj
                 ldab    F_FLAGS,x       ; somewhere new?
                 bitb    #FF_HOPL|FF_HOPR
                 beq     al_top
@@ -971,6 +994,7 @@ ship_hit:
                 bne     ship_hit_f1
                 tst     invuln
                 bne     ship_hit_f1
+                clr     sortie_on       ; (no sortie bonus now)
                 inc     dead            ; (the ships count drops when the
                 ldaa    #DEAD_TIME      ; next ship appears, or at game over)
                 staa    dead_t
@@ -1098,6 +1122,8 @@ ca_loop:                                ; tight: most pairs are rejected here
                 ldx     ht_a
                 ldd     #0
                 std     O_SPR,x
+                ldx     ht_b
+                jsr     sortie_kill     ; (its type, before it explodes)
                 ldx     ht_b            ; the alien explodes, drifting on at
                 asr     O_DX,x          ; half its speed
                 ror     O_DX+1,x
@@ -2651,6 +2677,63 @@ ld_digit_f1:    psha
 ; and written when a game ends with a new record, through the BIOS's
 ; data-file calls (as BASIC's OPEN / PRINT# / CLOSE).  A missing or bad
 ; file means 0; card errors are ignored (the game never stops for it).
+
+; The sortie bonus: a wave destroyed whole, of its own type only (another
+; type's kill ends it), none of it leaving through the bottom, the kills
+; at most SORTIE_GAP frames apart, the ship not lost, not a boss's
+; escorts: 10 x an alien's value (100 x the round), and a ba-BING.
+sortie_new:                             ; X = a wave launching its first: a
+                tst     sortie_on       ; new sortie (unless the last one is
+                beq     sortie_new_f1   ; still being finished off)
+                tst     sortie_hit
+                bne     sortie_r
+sortie_new_f1:  ldaa    W_COUNT,x
+                staa    sortie_left
+                ldd     W_DESC,x
+                std     sortie_dsc
+                clr     sortie_hit
+                clr     sortie_t
+                clr     sortie_on
+                tst     boss_state      ; (not a boss's escorts)
+                bne     sortie_r
+                inc     sortie_on
+                rts
+sortie_kill:                            ; X = the alien a shot destroyed
+                tst     sortie_on
+                beq     sortie_r
+                ldd     O_SPR,x
+                subd    sortie_dsc
+                beq     sortie_kill_f1
+                tst     sortie_hit      ; another type: the run is broken
+                bne     sortie_off      ; (once it has begun: a straggler
+                rts                     ; from the last wave doesn't count)
+sortie_kill_f1:
+                clr     sortie_t
+                inc     sortie_hit
+                dec     sortie_left
+                bne     sortie_r
+                clr     sortie_on       ; all of them: the bonus
+                ldaa    round           ; (100 x the round: score+1 holds
+                adda    score+1         ; the hundreds, BCD)
+                daa
+                staa    score+1
+                ldaa    score
+                adca    #0
+                daa
+                staa    score
+                ldaa    #1
+                staa    status_t
+                ldx     #fx_bing
+                ldaa    #8
+                jmp     snd_play
+sortie_leave:                           ; X = an alien leaving the bottom
+                tst     sortie_on
+                beq     sortie_r
+                ldd     O_SPR,x
+                subd    sortie_dsc
+                bne     sortie_r
+sortie_off:     clr     sortie_on
+sortie_r:       rts
 
 ; Extra ships: one at 10,000, then one at every 25,000 (25,000, 50,000
 ; ...), up to 9 (the bar shows one digit).  next_bonus is BCD.

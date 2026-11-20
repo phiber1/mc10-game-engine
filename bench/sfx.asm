@@ -125,6 +125,7 @@ cls_b1:         std     0,x
 
 ; the sounds: effect, name
 sounds:         fdb     fx_extra, s1
+                fdb     fx_bing, s14
                 fdb     fx_life, s2
                 fdb     fx_start, s3
                 fdb     fx_salute, s4
@@ -167,6 +168,8 @@ s11:            fcc     "WARP"
 s12:            fcc     "SHOT"
                 fcb     0
 s13:            fcc     "ALIEN EXPLODES"
+                fcb     0
+s14:            fcc     "SORTIE BONUS"
                 fcb     0
 
 #include "game_sfx.inc"
