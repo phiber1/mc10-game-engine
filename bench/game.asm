@@ -48,7 +48,7 @@ HOP_WAIT        equ     10              ; ... after a hop: 10-25 counts of 4 fra
 AIM_W           equ     2               ; aimed drops: within 2 pixels of the nose
 BOMB_WARN       equ     36              ; bombs start 36 rows above the ship (12 frames)
 
-START_SHIPS     equ     3
+START_SHIPS     equ     2               ; ships in reserve at the start (3 in all)
 DEAD_TIME       equ     110             ; frames from losing a ship to what's next
 BANNER_TIME     equ     110             ; frames a banner stays up
 OVER_TIME       equ     200             ; "GAME OVER"
@@ -133,7 +133,7 @@ hiscore         rmb     3               ; the high score (BCD), STARFALL.HI
 next_bonus      rmb     3               ; the next extra ship's score (BCD)
 hi_new          rmb     1               ; beaten this game: save it
 hi_buf          rmb     HI_SIZE         ; the file: "SF", score, checksum
-lives           rmb     1
+lives           rmb     1               ; ships in reserve (not the one flying)
 dead_t          rmb     1
 gover           rmb     1               ; game over: back to the title
 col_o           rmb     1               ; the orange and blue masks (swapped
@@ -832,9 +832,8 @@ sl_play:        tst     dead
                 jsr     obj_anim_step
 sl_play_f1:     dec     dead_t
                 bne     sl_ret
-                ldaa    lives           ; that was the last ship?
-                cmpa    #1
-                bls     sl_over
+                tst     lives           ; none in reserve: that was the last
+                beq     sl_over
                 jsr     field_clear     ; a fresh screen ...
                 jsr     map_show        ; ... after the map
                 clr     dead            ; another ship: one fewer in reserve,
@@ -848,7 +847,7 @@ sl_play_f1:     dec     dead_t
                 ldaa    #9
                 jmp     snd_play
 sl_over:
-                clr     lives           ; none left
+                clr     lives           ; (none left: it shows 0 already)
                 ldaa    #1
                 staa    status_t
                 inc     gover
@@ -2117,9 +2116,9 @@ round_banner:                           ; "ROUND n" (the current round)
                 ldd     #s_round
                 jmp     fin_banner
 
-fin_bonus:                              ; 10000 for every ship left
-                ldab    lives
-                beq     fin_bonus_f1
+fin_bonus:                              ; 10000 for every ship left: those
+                ldab    lives           ; in reserve and the one flying
+                incb
 fin_bonus_b1:   ldaa    score           ; (score+0 holds the 100000s and
                 adda    #1              ; 10000s, BCD)
                 daa

@@ -808,6 +808,10 @@ blue.  `bench/waves.asm` converted:
   any of them from a list.  Budget checks now fix the random seeds at
   game start and remove STARFALL.HI first, so every build plays the same
   game (the figures had wandered 0.4-2.3% with no real change).
+* **SHIPS counts the reserve (owner, 2026-11-19):** lives no longer
+  includes the ship flying.  START_SHIPS 2 (3 ships in all); losing a
+  ship with 0 in reserve ends the game; extra ships up to 9 in reserve;
+  the finale's ship bonus counts lives + 1 (the one flying too).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

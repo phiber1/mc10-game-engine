@@ -58,7 +58,7 @@ rm -f $HS/STARFALL.HI
 HSV=$(sym hiscore)
 hrun() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$HS frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
 out=$(hrun mem:$HSV,3 'type: ' frames:300 poke:$(sym score),012340 poke:$(sym status_t),01 frames:5 mem:$HSV,3 \
-      poke:$(sym lives),01 poke:$(sym dead),01 poke:$(sym dead_t),02 frames:500)
+      poke:$(sym lives),00 poke:$(sym dead),01 poke:$(sym dead_t),02 frames:500)
 h0=$(echo "$out" | grep "^mem $HSV" | sed -n 1p | cut -d: -f2 | tr -d ' ')
 h1=$(echo "$out" | grep "^mem $HSV" | sed -n 2p | cut -d: -f2 | tr -d ' ')
 file=$(od -An -tx1 $HS/STARFALL.HI 2>/dev/null | tr -d ' \n')
@@ -144,14 +144,15 @@ a0=$(echo "$out" | memval $ALIVEV 1); a1=$(echo "$out" | memval $ALIVEV 2); a2=$
 check "aliens flying ($a0) are cleared when the ship is lost ($a1 after the respawn)" "[ $a0 -gt 0 ] && [ $a1 -eq 0 ] && [ $(echo "$out" | memval $DEAD) -eq 0 ]"
 check "and they come back afterwards ($a2)" "[ $a2 -gt 0 ]"
 
-# 2f. The ships count drops when the next ship appears, not when the ship
-#     is lost; losing the last one shows 0 with GAME OVER.
+# 2f. SHIPS counts the reserve (not the ship flying): 2 at the start; it
+#     drops when the next ship appears, not when the ship is lost; losing
+#     a ship with 0 in reserve ends the game.
 GO=$(sym gover)
 out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$DEAD,01 poke:$DEADT,30 frames:10 mem:$LIVESV,1 frames:300 mem:$LIVESV,1 mem:$DEAD,1 \
-      poke:$LIVESV,01 poke:$(sym invuln),00 poke:$DEAD,01 poke:$DEADT,05 frames:30 mem:$LIVESV,1 mem:$GO,1)
+      poke:$LIVESV,00 poke:$(sym invuln),00 poke:$DEAD,01 poke:$DEADT,05 frames:30 mem:$LIVESV,1 mem:$GO,1)
 l0=$(echo "$out" | memval $LIVESV 1); l1=$(echo "$out" | memval $LIVESV 2); l2=$(echo "$out" | memval $LIVESV 3)
 l3=$(echo "$out" | memval $LIVESV 4); go=$(echo "$out" | memval $GO 1)
-check "ships: $l0, still $l1 while the ship is lost, $l2 once the next appears; last one lost: $l3, game over $go" "[ $l0 -eq 3 ] && [ $l1 -eq 3 ] && [ $l2 -eq 2 ] && [ $l3 -eq 0 ] && [ $go -eq 1 ]"
+check "ships: $l0, still $l1 while the ship is lost, $l2 once the next appears; last one lost: $l3, game over $go" "[ $l0 -eq 2 ] && [ $l1 -eq 2 ] && [ $l2 -eq 1 ] && [ $l3 -eq 0 ] && [ $go -eq 1 ]"
 
 # 3. A won area (waves cleared, boss defeated) goes through salute, warp,
 #    map and arrival to the next area, back in play mode.
@@ -264,11 +265,11 @@ check "a long boss fight doesn't push the map's ship up (top row ${top:-none})" 
 #     fireworks, banners): a bonus of 10000 for every ship left, round 2,
 #     then the warp to area 1 and play.
 SC=$(sym score); RD=$(sym round)
-out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,03 poke:$SC,000000 \
+out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,02 poke:$SC,000000 \
       poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:500 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
 m5=$(echo "$out" | memval $MODE 1); r1=$(echo "$out" | memval $RD 1); sc=$(echo "$out" | grep "^mem $SC" | cut -d: -f2 | tr -d ' ')
 r2=$(echo "$out" | memval $RD 2); a0=$(echo "$out" | memval $AREA 1); m0=$(echo "$out" | memval $MODE 2)
-check "the fortress's fall: finale (mode $m5), ship bonus (score's top byte $sc for 3 ships), round $r1 -> $r2, then area $a0 in play (mode $m0)" \
+check "the fortress's fall: finale (mode $m5), ship bonus (score's top byte $sc for 3 ships: 2 in reserve and the one flying), round $r1 -> $r2, then area $a0 in play (mode $m0)" \
       "[ $m5 -eq 5 ] && [ $sc = 03 ] && [ $r1 -eq 1 ] && [ $r2 -eq 2 ] && [ $a0 -eq 0 ] && [ $m0 -eq 0 ]"
 
 # 4h. The finale's song is over when the ship blasts off, so the warp's
@@ -307,7 +308,7 @@ out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$SCV,010000 poke:$STT
 lv=$(echo "$out" | grep "^mem $LIVESV" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
 nb=$(echo "$out" | grep "^mem $NB" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
 sp=$(echo "$out" | grep "^mem $(sym snd_ptr)" | cut -d: -f2 | tr -d ' '); FXE=$(sym fx_extra)
-check "extra ships: ships $lv(next at $nb), with their beeps (sound at \$$sp, fx_extra \$$FXE)" "[ \"$lv\" = '03 04 05 07 ' ] && [ \"$nb\" = '025000 100000 ' ] && [ \$((0x$sp)) -ge \$((0x$FXE)) ] && [ \$((0x$sp)) -lt \$((0x$FXE + 40)) ]"
+check "extra ships: ships $lv(next at $nb), with their beeps (sound at \$$sp, fx_extra \$$FXE)" "[ \"$lv\" = '02 03 04 06 ' ] && [ \"$nb\" = '025000 100000 ' ] && [ \$((0x$sp)) -ge \$((0x$FXE)) ] && [ \$((0x$sp)) -lt \$((0x$FXE + 40)) ]"
 mvk=""; for i in $(seq 1 6); do mvk="$mvk A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
 out=$(run frames:30 'type: ' frames:250 poke:$(sym round),03 poke:$LIVESV,09 "type:$mvk" frames:1500 mem:$SCV,3)
 sc=$(echo "$out" | grep "^mem $SCV" | cut -d: -f2 | tr -d ' '); scn=$(echo $sc | sed 's/^0*//'); scn=${scn:-0}
