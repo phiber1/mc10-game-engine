@@ -160,6 +160,15 @@ z=$(printf '0%.0s' $(seq 1 $((n*2))))
 out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:700 mem:$AREA,1 mem:$MODE,1 mem:$WARPF,1)
 check "area clear leads to area 2, back in play" "[ $(echo "$out" | memval $AREA) -eq 1 ] && [ $(echo "$out" | memval $MODE) -eq 0 ] && [ $(echo "$out" | memval $WARPF) -eq 1 ]"
 
+# 3b. The blast-off: from the salute into the warp the ship's art moves at
+#     most a pixel across a frame and doesn't drop when the warp sprite
+#     takes over (it used to nudge down and right).  Art top = y + PADY.
+SD1=$(sym ship_dsc); s=""; for i in $(seq 1 160); do s="$s frames:1 mem:$SHIP,4 mem:$(printf %04X $((0x$SHIP+8))),2"; done
+out=$(run frames:30 'type: ' frames:300 poke:$SHIP,3D "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:20 $s)
+jm=$(echo "$out" | grep '^mem' | paste - - | awk -v sd=$SD1 '{x=strtonum("0x"$3); y=strtonum("0x"$5); d=$9$10; t=y+(d==sd?2:6); if(NR>1 && py<150){dx=x-px; if(dx<0)dx=-dx; if(dx>mx)mx=dx; dy=t-pt; if(pd!=d && pd!="" && (dy>1||dy< -5)) bad++} px=x; py=y; pt=t; pd=d} END{print mx+0, bad+0}')
+set -- $jm
+check "the ship blasts off without a nudge (largest step across $1, drops $2)" "[ $1 -le 1 ] && [ $2 -eq 0 ]"
+
 # 3a. Boss overlays: area 1's boss is loaded from BOSS1.BIN before play,
 #     and the warp to area 2 loads BOSS2.BIN during the map screen (its
 #     header names boss2's hull).  Without the boss files the game stops
@@ -221,7 +230,7 @@ out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AR
       mem:$BOSS,1 mem:$CS,3 \
       poke:$SHIP,3B "type:$sp" $keep3 mem:$HP,3 \
       poke:$SHIP,20 "type:$sp" $keep3 poke:$SHIP,20 "type:$sp" $keep3 \
-      poke:$SHIP,52 "type:$sp" $keep3 poke:$SHIP,52 "type:$sp" $keep3 mem:$EL,1 mem:$CS,3 \
+      poke:$SHIP,52 "type:$sp" $keep3 poke:$SHIP,52 "type:$sp" $keep3 mem:$EL,1 mem:$CS,3 mem:$(sym alive_max),1 \
       poke:$SHIP,3B "type:$sp" $keep3 mem:$HP,3 \
       poke:$SHIP,32 "type:$sp" $keep3 poke:$SHIP,44 "type:$sp" $keep3 mem:$CS,3 mem:$BOSS,1 \
       poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 poke:$SHIP,3B "type:$sp" $keep3 mem:$BS,1 mem:$AREA,1 \
@@ -236,6 +245,8 @@ cs2=$(echo "$out" | grep "^mem $CS" | sed -n 3p | cut -d: -f2 | tr -d ' ')
 bs4=$(echo "$out" | memval $BS 1)
 check "the fortress stays put (x $bx0, later $bx1) with its cores shut (states $cs0, hits $hp0)" "[ $bx0 -eq 46 ] && [ $bx1 -eq 46 ] && [ $cs0 = 000000 ] && [ $hp0 = 06060E ]"
 check "envoys down: the side cores open, the centre stays shut and unhurt (envoys $el, states $cs1, hits $hp1)" "[ $el -eq 0 ] && [ $cs1 = 010100 ] && [ \$(echo $hp1 | cut -c5-6) = 0E ]"
+am=$(echo "$out" | memval $(sym alive_max) 1)
+check "the unguarded fortress sends three escorts at once ($am)" "[ $am -eq 3 ]"
 check "side cores destroyed: the centre opens (states $cs2), and destroying it ends the boss (state $bs4)" "[ $cs2 = 020201 ] && { [ $bs4 -ge 3 ] || [ $bs4 -eq 0 ]; }"
 cols=$(echo "$out" | grep "^mem $(sym col_o)" | cut -d: -f2 | tr -d ' ')
 check "the fortress's fall leaves the variables alone (text colours $cols)" "[ $cols = AA55 ]"
@@ -287,6 +298,19 @@ out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke
 d6=$(dvals "$out" 1); f6=$(echo "$out" | memval $AF 1)
 check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '48 7 22 16' ] && [ \"$d2\" = '60 6 19 14' ] && [ \"$d6\" = '96 3 10 8' ]"
 check "even rounds swap the aliens' colours (rounds 1, 2, 6: $f1 $f2 $f6)" "[ $f1 -eq 0 ] && [ $f2 -eq 1 ] && [ $f6 -eq 1 ]"
+
+# 4j. Extra ships at 10,000 and every 25,000 (a big jump passes several);
+#     aliens are worth 10 x the round (round 3: 30 each).
+NB=$(sym next_bonus); SCV=$(sym score); STT=$(sym status_t)
+out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$SCV,010000 poke:$STT,01 frames:3 mem:$LIVESV,1 mem:$NB,3 \
+      poke:$SCV,025000 poke:$STT,01 frames:3 mem:$LIVESV,1 poke:$SCV,080000 poke:$STT,01 frames:3 mem:$LIVESV,1 mem:$NB,3)
+lv=$(echo "$out" | grep "^mem $LIVESV" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
+nb=$(echo "$out" | grep "^mem $NB" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
+check "extra ships: ships $lv(next at $nb)" "[ \"$lv\" = '03 04 05 07 ' ] && [ \"$nb\" = '025000 100000 ' ]"
+mvk=""; for i in $(seq 1 6); do mvk="$mvk A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
+out=$(run frames:30 'type: ' frames:250 poke:$(sym round),03 poke:$LIVESV,09 "type:$mvk" frames:1500 mem:$SCV,3)
+sc=$(echo "$out" | grep "^mem $SCV" | cut -d: -f2 | tr -d ' '); scn=$(echo $sc | sed 's/^0*//'); scn=${scn:-0}
+check "round 3 aliens are worth 30 (score $sc, a multiple of 30)" "[ $scn -gt 0 ] && [ \$(($scn % 30)) -eq 0 ]"
 
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.

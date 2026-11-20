@@ -130,6 +130,7 @@ boss_state      rmb     1               ; BS_NONE ... BS_DEFEATED
                 org     BSS             ; ordinary RAM: the rest
 score           rmb     3               ; BCD, 6 digits
 hiscore         rmb     3               ; the high score (BCD), STARFALL.HI
+next_bonus      rmb     3               ; the next extra ship's score (BCD)
 hi_new          rmb     1               ; beaten this game: save it
 hi_buf          rmb     HI_SIZE         ; the file: "SF", score, checksum
 lives           rmb     1
@@ -315,6 +316,9 @@ game_start_b1:  clr     0,x
                 ldd     #0
                 std     score
                 staa    score+2
+                ldd     #$0100          ; the first extra ship: 10,000
+                std     next_bonus
+                clr     next_bonus+2
                 ldaa    #START_SHIPS
                 staa    lives
                 clr     alive
@@ -806,6 +810,7 @@ ship_logic:
                 ldd     #0
                 std     O_DX,x
                 std     O_DY,x
+                jsr     ship_align
                 dec     mode_t
                 bne     sl_ret
                 jmp     warp_begin
@@ -1100,7 +1105,7 @@ ca_loop:                                ; tight: most pairs are rejected here
                 ldd     #anim_boom
                 jsr     boom_start
                 dec     alive
-                jsr     score_10
+                jsr     score_alien
                 ldx     #fx_boom
                 ldaa    #2
                 jsr     snd_play
@@ -1175,7 +1180,7 @@ cc_loop:
                 ldd     #anim_boom      ; collision: both explode
                 jsr     boom_start
                 dec     alive
-                jsr     score_10
+                jsr     score_alien
                 jmp     ship_hit
 cc_next:
                 ldab    #OBJ_SIZE
@@ -1823,8 +1828,13 @@ et_down:        ldx     ht_b            ; destroyed: it explodes ...
                 ldaa    #3
                 jsr     snd_play
                 dec     env_left        ; ... and when both are gone the
-                bne     et_hit          ; first cores open
-                clra
+                bne     et_hit          ; first cores open (and a fortress,
+                tst     boss_still      ; unguarded, sends two more escorts)
+                beq     et_down_f1
+                ldaa    alive_max
+                adda    #2
+                staa    alive_max
+et_down_f1:     clra
                 jsr     open_stage
 et_hit:         sec
                 rts
@@ -1990,6 +2000,7 @@ finale_logic:
                 ldd     #0
                 std     O_DX,x
                 std     O_DY,x
+                jsr     ship_align
                 ldd     fin_t
                 subd    #1
                 std     fin_t
@@ -2118,6 +2129,27 @@ fin_bonus_f1:   ldaa    #1
                 jmp     fin_banner
 
 ; ---------------------------------------------------------------- warp
+warp_x:                                 ; A = the ship's x on the warp
+                ldaa    ship+O_X        ; sprite's shift (3), inside the
+                oraa    #3              ; ship's range
+                cmpa    #SHIP_XMAX
+                bls     warp_x_r
+                suba    #4
+warp_x_r:       rts
+
+ship_align:                             ; holding still before the warp:
+                ldaa    frame_count     ; glide a pixel every other frame
+                anda    #1              ; onto warp_x (no jump at blast-off)
+                bne     ship_align_r
+                bsr     warp_x
+                cmpa    ship+O_X
+                beq     ship_align_r
+                bhi     ship_align_f1
+                dec     ship+O_X
+                rts
+ship_align_f1:  inc     ship+O_X
+ship_align_r:   rts
+
 warp_begin:
                 ldaa    #MODE_WARP
                 staa    mode
@@ -2127,12 +2159,12 @@ warp_begin:
                 ldx     #ship
                 ldd     #shipw1_dsc
                 std     O_SPR,x
-                ldaa    O_X,x           ; compiled for shift 3 only (the
-                oraa    #3              ; arrival x, (128-ship_W)/2, is on
-                cmpa    #SHIP_XMAX      ; it): snap x to it, inside the
-                bls     warp_begin_f1   ; ship's range
-                suba    #4
-warp_begin_f1:  staa    O_X,x
+                bsr     warp_x          ; compiled for shift 3 only (the
+                staa    O_X,x           ; arrival x, (128-ship_W)/2, is on
+                ldaa    O_Y,x           ; it): x on it (the salute has
+                suba    #shipw1_PADY-ship_PADY ; glided there already), and
+                staa    O_Y,x           ; the art on the same rows (a
+                                        ; taller halo above it)
                 ldx     #fx_warp        ; (a jingle's priority: the roar
                 ldaa    #9              ; must not lose to a tune's last
                 jmp     snd_play        ; notes)
@@ -2226,7 +2258,10 @@ arrive_logic_f1:
                 addd    #$0028
                 bmi     arrive_logic_f2
                 jsr     obj_erase       ; stopped: back to the normal ship
-                ldx     #ship
+                ldx     #ship           ; (its art on the same rows)
+                ldaa    O_Y,x
+                adda    #shipw1_PADY-ship_PADY
+                staa    O_Y,x
                 ldd     #ship_dsc
                 std     O_SPR,x
                 ldd     #0
@@ -2389,6 +2424,14 @@ score_1000:                             ; score += 1000 (BCD)
                 rts
 
 ; ---------------------------------------------------------------- score
+score_alien:                            ; an alien: 10 x the round (rounds
+                ldaa    round           ; 1-9: the BCD tens digit)
+                asla
+                asla
+                asla
+                asla
+                adda    score+2
+                bra     sc_lo
 score_10:                               ; score += 10 (BCD)
                 ldaa    score+2
                 adda    #$10
@@ -2447,6 +2490,7 @@ status_update:                          ; the figures, when they changed
                 staa    tx_n
                 ldd     #score
                 jsr     txt_bcd
+                jsr     bonus_check     ; an extra ship?
                 ldaa    lives
                 adda    #'0'
                 ldx     #BUF_AT(1,31)
@@ -2597,6 +2641,47 @@ ld_digit_f1:    psha
 ; and written when a game ends with a new record, through the BIOS's
 ; data-file calls (as BASIC's OPEN / PRINT# / CLOSE).  A missing or bad
 ; file means 0; card errors are ignored (the game never stops for it).
+
+; Extra ships: one at 10,000, then one at every 25,000 (25,000, 50,000
+; ...), up to 9 (the bar shows one digit).  next_bonus is BCD.
+bonus_check:
+                ldaa    score
+                cmpa    next_bonus
+                bhi     bonus_f1
+                bne     bonus_r
+                ldaa    score+1
+                cmpa    next_bonus+1
+                bhi     bonus_f1
+                bne     bonus_r
+                ldaa    score+2
+                cmpa    next_bonus+2
+                bcs     bonus_r
+bonus_f1:       ldaa    next_bonus+1    ; the next one: 25,000, or 25,000
+                cmpa    #$00            ; more (10,000 -> 25,000)
+                bne     bonus_f2
+                ldaa    next_bonus
+                cmpa    #$01
+                bne     bonus_f2
+                ldd     #$0250
+                std     next_bonus
+                bra     bonus_f3
+bonus_f2:       ldaa    next_bonus+1
+                adda    #$50
+                daa
+                staa    next_bonus+1
+                ldaa    next_bonus
+                adca    #$02
+                daa
+                staa    next_bonus
+bonus_f3:       ldaa    lives
+                cmpa    #9
+                bcc     bonus_check     ; (at most 9: the next threshold)
+                inc     lives
+                ldx     #fx_life        ; (the fresh ship's phrase)
+                ldaa    #7
+                jsr     snd_play
+                bra     bonus_check     ; (a big bonus may pass several)
+bonus_r:        rts
 
 hi_check:                               ; score above the record: it's the
                                         ; record now (carry set) (compared as
@@ -2813,7 +2898,15 @@ td_cast:        ldd     0,x
                 ldab    #8
                 abx
                 bra     td_cast
-td_cast_f1:     ldaa    col_b
+td_cast_f1:     ldaa    col_o           ; the challenge
+                staa    txt_col
+                ldx     #TXT_AT(128,7)
+                ldd     #s_canyou
+                jsr     txt_str
+                ldx     #TXT_AT(136,8)
+                ldd     #s_canyou2
+                jsr     txt_str
+                ldaa    col_b
                 staa    txt_col
                 ldx     #TXT_AT(150,6)
                 ldd     #s_start
@@ -2833,14 +2926,14 @@ td_cast_f1:     ldaa    col_b
 CAST_X          equ     36
 CAST_TXT        equ     14
 cast:           fdb     saucer_hr
-                fcb     CAST_X, 72
-                fdb     TXT_AT(76,CAST_TXT), s_swooper
+                fcb     CAST_X, 68
+                fdb     TXT_AT(72,CAST_TXT), s_swooper
                 fdb     dart_hr
-                fcb     CAST_X, 96
-                fdb     TXT_AT(100,CAST_TXT), s_zagger
+                fcb     CAST_X, 88
+                fdb     TXT_AT(92,CAST_TXT), s_zagger
                 fdb     orbiter_hr
-                fcb     CAST_X, 120
-                fdb     TXT_AT(124,CAST_TXT), s_warper
+                fcb     CAST_X, 108
+                fdb     TXT_AT(112,CAST_TXT), s_warper
                 fdb     0
 
 ; big_str: X = screen, D = string: the logo letters, magnified (each
@@ -3325,8 +3418,8 @@ s_player:       fcc     "PLAYER 1"
                 fcb     0
 s_area:         fcc     "AREA "
                 fcb     0
-s_fallen:       fdb     TXT_AT(BANNER_ROW,4)
-                fcc     "THE FORTRESS HAS FALLEN!"
+s_fallen:       fdb     TXT_AT(BANNER_ROW,1)
+                fcc     "THE SPACE FORTRESS HAS FALLEN!"
                 fcb     0
 s_alldone:      fdb     TXT_AT(BANNER_ROW,4)
                 fcc     "ALL FOUR BOSSES DEFEATED"
@@ -3346,6 +3439,10 @@ s_bossin:       fdb     TXT_AT(BANNER_ROW,11)
 s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_cast:         fcc     "MEET THE ALIENS"
+                fcb     0
+s_canyou:       fcc     "CAN YOU DEFEAT THE"
+                fcb     0
+s_canyou2:      fcc     "SPACE FORTRESS?"
                 fcb     0
 s_swooper:      fcc     "SWOOPER"
                 fcb     0

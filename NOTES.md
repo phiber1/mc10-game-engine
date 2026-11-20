@@ -779,6 +779,20 @@ blue.  `bench/waves.asm` converted:
     the game.
   * **Boss 4's look:** the fortress art is still Claude's first draft;
     the owner hasn't decided on changes yet.
+* **Owner's play-through notes (2026-11-19), done:**
+  * Blast-off nudge: the warp sprite's halo is 4 rows taller above the
+    ship (PADY 6 vs 2), so swapping sprites at one y dropped the art,
+    and its one shift snapped x right.  warp_begin/arrival adjust y by
+    shipw1_PADY-ship_PADY; the salute and finale glide x onto the warp
+    shift (ship_align, a pixel every other frame).  Check 3b.
+  * Extra ships at 10,000, 25,000 and every 25,000 after (owner: round
+    numbers), up to 9 (bonus_check, next_bonus BCD; a big jump awards
+    each threshold).  Check 4j.
+  * Aliens worth 10 x the round (score_alien; round shown up to 9).
+  * Fortress: once both envoys are gone it sends 3 escorts (alive_max
+    +2): ~4.9% over budget, like the other fights.
+  * "THE SPACE FORTRESS HAS FALLEN!"; the title asks CAN YOU DEFEAT THE
+    / SPACE FORTRESS? (the cast moved up 4-12 rows to fit it).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
