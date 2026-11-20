@@ -58,7 +58,8 @@ build:
 	mkdir -p build
 
 # cpp handles #include/#define, then ASL assembles and p2bin extracts
-build/%.s: bench/%.asm $(ENGINE) $(SPRITES) | build
+BENCHINC := $(wildcard bench/*.inc)
+build/%.s: bench/%.asm $(ENGINE) $(SPRITES) $(BENCHINC) | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) $(CPPDEFS) $< -o $@
 
 build/%.p: build/%.s
