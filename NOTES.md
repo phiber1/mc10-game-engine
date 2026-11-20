@@ -812,6 +812,15 @@ blue.  `bench/waves.asm` converted:
   includes the ship flying.  START_SHIPS 2 (3 ships in all); losing a
   ship with 0 in reserve ends the game; extra ships up to 9 in reserve;
   the finale's ship bonus counts lives + 1 (the one flying too).
+* **Fixed (2026-11-20): boss 1 unbeatable-ish after the redesign.**  The
+  beetle's cannons at its pincer tips (columns 7 and 16) bombed every
+  spot from which the ship can hit the core (its gun under columns
+  10-13 puts the 8-pixel hull over 7-17); the old mothership's (4, 18)
+  left them clear.  Now the pincers' outer bases (3, 20); the squid's
+  outer tentacles (5, 18, were 9 and 14).  An assembly check (B1_CAN_*,
+  B3_CAN_*) keeps them at 6 or less / 18 or more.  The waves were
+  verified unchanged (yesterday's and today's builds play the same game
+  frame for frame).  Boss 2's (8, 14) stay: the owner likes its fight.
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

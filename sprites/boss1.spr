@@ -2,7 +2,8 @@
 # "more bug"): split wing cases, the thorax, a head with orange eyes,
 # legs bristling out, and pincer mandibles curving down around the core's
 # opening (columns 10-13, rows 10-13) and its channel; the cannons fire
-# from the pincer tips (columns 7 and 16).  24x16, a 1-pixel halo.
+# from the pincers' outer bases (columns 3 and 20: the
+# tips were too close to the core's channel).  24x16, a 1-pixel halo.
 sprite boss1 artifact halo 1 1
 .......WWWWWWWWWW.......
 .....WWBBBB..BBBBWW.....

@@ -3356,15 +3356,26 @@ cores4:         fcb     3               ; the fortress: two side cores, then
                 CORE    6, 13, 0, 6     ; the centre one
                 CORE    24, 13, 0, 6
                 CORE    15, 13, 1, 14
-cans1:          fcb     2               ; (the pincer tips)
-                CANNON  7, 16
-                CANNON  16, 16
+cans1:          fcb     2               ; (the pincers' outer bases: the tips
+                CANNON  B1_CAN_L, 14    ; hugged the core's channel, so every
+                CANNON  B1_CAN_R, 14    ; spot under the core was bombed)
 cans23:         fcb     2
                 CANNON  8, 16
                 CANNON  14, 16
-cans3:          fcb     2               ; (two tentacle tips)
-                CANNON  9, 16
-                CANNON  14, 16
+cans3:          fcb     2               ; (the outer tentacles' tips: clear of
+                CANNON  B3_CAN_L, 16    ; the spots under the core)
+                CANNON  B3_CAN_R, 16
+; Bosses 1 and 3: their cannons must leave every spot under the core
+; clear (the ship's gun under columns 10-13 puts its 8-pixel hull over
+; columns 7-17): columns 6 or less, or 18 or more.  (Boss 2's sit closer,
+; and that's how the owner likes its fight.)
+B1_CAN_L        equ     3               ; (the cannon columns: used below
+B1_CAN_R        equ     20              ; and checked here)
+B3_CAN_L        equ     5
+B3_CAN_R        equ     18
+                if      (B1_CAN_L>6)||(B1_CAN_R<18)||(B3_CAN_L>6)||(B3_CAN_R<18)
+                error   "a boss cannon bombs the spots under its core"
+                endif
 cans4:          fcb     4
                 CANNON  2, 16
                 CANNON  21, 16
