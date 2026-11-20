@@ -2903,10 +2903,10 @@ td_cast:        ldd     0,x
                 bra     td_cast
 td_cast_f1:     ldaa    col_o           ; the challenge
                 staa    txt_col
-                ldx     #TXT_AT(128,7)
+                ldx     #TXT_AT(128,9)
                 ldd     #s_canyou
                 jsr     txt_str
-                ldx     #TXT_AT(136,8)
+                ldx     #TXT_AT(136,6)
                 ldd     #s_canyou2
                 jsr     txt_str
                 ldaa    col_b
@@ -3446,9 +3446,9 @@ s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
 s_cast:         fcc     "MEET THE ALIENS"
                 fcb     0
-s_canyou:       fcc     "CAN YOU DEFEAT THE"
+s_canyou:       fcc     "CAN YOU DEFEAT"
                 fcb     0
-s_canyou2:      fcc     "SPACE FORTRESS?"
+s_canyou2:      fcc     "THE SPACE FORTRESS?"
                 fcb     0
 s_swooper:      fcc     "SWOOPER"
                 fcb     0
