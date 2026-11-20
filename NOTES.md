@@ -793,6 +793,15 @@ blue.  `bench/waves.asm` converted:
     +2): ~4.9% over budget, like the other fights.
   * "THE SPACE FORTRESS HAS FALLEN!"; the title asks CAN YOU DEFEAT THE
     / SPACE FORTRESS? (the cast moved up 4-12 rows to fit it).
+* **Bosses 1 and 3 re-imagined (2026-11-19, with the owner).**  Boss 1
+  is a stag beetle seen from above (wing cases, legs, pincer mandibles
+  around the core: core row 10, cannons at the pincer tips, columns 7
+  and 16); boss 3 a cephalopod (bulbous head, one wide orange eye,
+  tentacles; cannons at columns 9 and 14, its own list cans3).  Drafts
+  were made with tools in $TMPDIR and viewed with make run-view.  The
+  owner's favourites stay: boss 2 and the space fortress.  The hardest
+  rounds' bomb gap now stops at 4 frames (3 sat on the edge of the
+  budget: 3.4-5.9% over between builds; now 1.2%).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

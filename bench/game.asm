@@ -2064,7 +2064,7 @@ firework_f1:    stx     obj
 
 ; The difficulty for the round: dlev = round - 1 (at most DIFF_MAX).
 ; Each step: the bomb spray window 12 frames longer (of 128), the gap
-; between bombs a frame shorter, cannon shots 3 frames and envoy bombs 2
+; between bombs a frame shorter (down to 4), cannon shots 3 frames and envoy bombs 2
 ; frames apart less, waves launched 2 frames closer, two more hits for
 ; each boss core and one more for each envoy.  Round 1 is as designed.
 set_diff:
@@ -2082,9 +2082,12 @@ set_diff_f1:    staa    dlev
                 mul
                 addb    #SPRAY_ON
                 stab    spray_on
-                ldaa    #BOMB_GAP
-                suba    dlev
-                staa    bomb_gap
+                ldaa    #BOMB_GAP       ; (at least 4: 3 left the busiest
+                suba    dlev            ; rounds near the frame budget)
+                cmpa    #4
+                bcc     set_diff_f2
+                ldaa    #4
+set_diff_f2:    staa    bomb_gap
                 ldaa    dlev
                 ldab    #3
                 mul
@@ -3342,10 +3345,10 @@ CANNON          macro   col,row
 BOSS4_X         equ     ((128-boss4_W)/2)&$FC|2 ; on boss4's one shift (2)
 boss_tab:       BOSSROW 0, 0, esc1, 1, cores1, cans1, 6, (128-boss1_W)/2, BOSS_Y, 0, boss1_W, boss1_H, MAX_ALIVE
                 BOSSROW 2, 4, esc2, 2, cores2, cans23, 4, (128-boss2_W)/2, BOSS_Y, 0, boss2_W, boss2_H, MAX_ALIVE
-                BOSSROW 2, 6, esc3, 3, cores3, cans23, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H, MAX_ALIVE
+                BOSSROW 2, 6, esc3, 3, cores3, cans3, 5, (128-boss3_W)/2, BOSS_Y, 0, boss3_W, boss3_H, MAX_ALIVE
                 BOSSROW 2, 6, esc4, 4, cores4, cans4, 6, BOSS4_X, 7, 1, boss4_W, boss4_H, FORT_ALIVE
-cores1:         fcb     1
-                CORE    10, 8, 0, 8
+cores1:         fcb     1               ; (in the beetle's maw)
+                CORE    10, 10, 0, 8
 cores2:         fcb     1
                 CORE    10, 10, 0, 10
 cores3:         fcb     1
@@ -3354,11 +3357,14 @@ cores4:         fcb     3               ; the fortress: two side cores, then
                 CORE    6, 13, 0, 6     ; the centre one
                 CORE    24, 13, 0, 6
                 CORE    15, 13, 1, 14
-cans1:          fcb     2
-                CANNON  4, 16
-                CANNON  18, 16
+cans1:          fcb     2               ; (the pincer tips)
+                CANNON  7, 16
+                CANNON  16, 16
 cans23:         fcb     2
                 CANNON  8, 16
+                CANNON  14, 16
+cans3:          fcb     2               ; (two tentacle tips)
+                CANNON  9, 16
                 CANNON  14, 16
 cans4:          fcb     4
                 CANNON  2, 16
