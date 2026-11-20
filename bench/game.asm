@@ -1405,9 +1405,9 @@ bst_cnext:      inc     ci
                 staa    wv_timer
                 ldaa    boss_fire
                 staa    boss_t
-                ldx     #fx_bossin
-                ldaa    #5
-                jsr     snd_play
+                ldx     #fx_bossin      ; (a jingle's priority: a bonus's
+                ldaa    #9              ; beeps still sounding mustn't stop
+                jsr     snd_play        ; the warning starting)
                 ldd     #s_bossin
                 jsr     banner_show
                 ldaa    #WARN_TIME

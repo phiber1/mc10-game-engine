@@ -329,6 +329,14 @@ check "a whole sortie destroyed quickly earns its bonus (score 160 seen $sb time
 out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 $keep $keep frames:400 mem:$(sym boss_state),1 mem:$SON,1)
 check "no sortie bonus for a boss's escorts (boss state $(echo "$out" | memval $(sym boss_state) 1), sortie $(echo "$out" | memval $SON 1))" "[ $(echo "$out" | memval $(sym boss_state) 1) -eq 2 ] && [ $(echo "$out" | memval $SON 1) -eq 0 ]"
 
+# 4l. The boss's warning siren plays even if a bonus's beeps are still
+#     sounding as it arrives (they used to keep it from starting at all).
+FXB=$(sym fx_bossin)
+out=$(run frames:30 'type: ' frames:300 "poke:$ALIENS,$z" poke:$ALIVE,00 poke:$AREA_DONE,01 bp:$(sym boss_start) \
+      poke:$(sym snd_ptr),$(sym fx_bing) poke:$(sym snd_pri),08 frames:3 mem:$(sym snd_ptr),2)
+p=$(echo "$out" | grep "^mem $(sym snd_ptr)" | cut -d: -f2 | tr -d ' ')
+check "the boss's siren sounds over a bonus's beeps (sound at \$$p, fx_bossin \$$FXB)" "[ \$((0x$p)) -ge \$((0x$FXB)) ] && [ \$((0x$p)) -lt \$((0x$FXB + 80)) ]"
+
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.
 #     (The bug: area 1's first wave dropped bombs at fixed points of its
