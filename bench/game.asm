@@ -2686,7 +2686,7 @@ sortie_new:                             ; X = a wave launching its first: a
                 tst     sortie_on       ; new sortie (unless the last one is
                 beq     sortie_new_f1   ; still being finished off)
                 tst     sortie_hit
-                bne     sortie_r
+                bne     sortie_r0
 sortie_new_f1:  ldaa    W_COUNT,x
                 staa    sortie_left
                 ldd     W_DESC,x
@@ -2695,23 +2695,46 @@ sortie_new_f1:  ldaa    W_COUNT,x
                 clr     sortie_t
                 clr     sortie_on
                 tst     boss_state      ; (not a boss's escorts)
-                bne     sortie_r
+                bne     sortie_r0
                 inc     sortie_on
                 rts
 sortie_kill:                            ; X = the alien a shot destroyed
                 tst     sortie_on
-                beq     sortie_r
+                beq     sortie_r0
                 ldd     O_SPR,x
                 subd    sortie_dsc
                 beq     sortie_kill_f1
                 tst     sortie_hit      ; another type: the run is broken
-                bne     sortie_off      ; (once it has begun: a straggler
-                rts                     ; from the last wave doesn't count)
+                beq     sortie_r0       ; (once it has begun: a straggler
+                clr     sortie_on       ; from the last wave doesn't count)
+sortie_r0:      rts
 sortie_kill_f1:
                 clr     sortie_t
                 inc     sortie_hit
                 dec     sortie_left
                 bne     sortie_r
+                ldx     #aliens         ; all of them?  Not while another of
+sortie_cnt_b1:  cpx     ht_b            ; that type still flies (a straggler
+                beq     sortie_cnt_f1   ; counted from the last wave, say):
+                ldd     O_SPR,x         ; then it waits for those too
+                subd    sortie_dsc      ; (sortie_left counts them; the one
+                bne     sortie_cnt_f1   ; just hit, ht_b, isn't exploding
+                ldd     AN_PTR,x        ; yet, so it's skipped)
+                bne     sortie_cnt_f1
+                inc     sortie_left
+sortie_cnt_f1:  ldab    #OBJ_SIZE
+                abx
+                cpx     #aliens_end
+                bne     sortie_cnt_b1
+                ldx     wv_ptr          ; and its wave's still to launch, if
+                ldd     W_DESC,x        ; that wave is still launching
+                subd    sortie_dsc
+                bne     sortie_cnt_f2
+                ldaa    sortie_left
+                adda    wv_left
+                staa    sortie_left
+sortie_cnt_f2:  tst     sortie_left
+                bne     sortie_r0
                 clr     sortie_on       ; all of them: the bonus
                 ldaa    round           ; (100 x the round: score+1 holds
                 adda    score+1         ; the hundreds, BCD)

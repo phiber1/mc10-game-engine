@@ -100,13 +100,13 @@ fx_extra:                               ; an extra ship: three quick, high
                 fdb     0, 0
                 endm
                 fcb     0
-fx_bing:                                ; a sortie bonus: "ba-BING!", a short
-                fcb     3, SND_TONE     ; note, then a higher one that rings
-                fdb     N_A5, 0
-                fcb     1, SND_REST
+fx_bing:                                ; a sortie bonus: two quick, high,
+                fcb     3, SND_TONE     ; rising beeps (the extra ship's are
+                fdb     N_D6, 0         ; three, all E6)
+                fcb     2, SND_REST
                 fdb     0, 0
-                fcb     16, SND_TONE
-                fdb     N_D6, 1         ; (sinking a hair as it rings)
+                fcb     3, SND_TONE
+                fdb     N_E6, 0
                 fcb     0
 fx_warp:                                ; the afterburner: a rising roar
                 fcb     40, SND_NOISE

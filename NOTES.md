@@ -838,6 +838,11 @@ blue.  `bench/waves.asm` converted:
   its first kill (stragglers from the last wave don't).  Tracked by
   alien type (no spare byte per alien), so a straggler of the same type
   from the previous wave can count towards the next.  Check 4k.
+  Then (owner: the bonus came with one alien left): when the count runs
+  out, sortie_kill also counts any alien of that type still flying (not
+  the one just hit) and, if the sortie's wave is still launching, those
+  still to launch; the bonus waits for them.  fx_bing is now two quick
+  rising beeps (D6, E6).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never
