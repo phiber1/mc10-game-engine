@@ -302,11 +302,12 @@ check "even rounds swap the aliens' colours (rounds 1, 2, 6: $f1 $f2 $f6)" "[ $f
 # 4j. Extra ships at 10,000 and every 25,000 (a big jump passes several);
 #     aliens are worth 10 x the round (round 3: 30 each).
 NB=$(sym next_bonus); SCV=$(sym score); STT=$(sym status_t)
-out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$SCV,010000 poke:$STT,01 frames:3 mem:$LIVESV,1 mem:$NB,3 \
+out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$SCV,010000 poke:$STT,01 frames:3 mem:$LIVESV,1 mem:$NB,3 mem:$(sym snd_ptr),2 \
       poke:$SCV,025000 poke:$STT,01 frames:3 mem:$LIVESV,1 poke:$SCV,080000 poke:$STT,01 frames:3 mem:$LIVESV,1 mem:$NB,3)
 lv=$(echo "$out" | grep "^mem $LIVESV" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
 nb=$(echo "$out" | grep "^mem $NB" | cut -d: -f2 | tr -d ' ' | tr '\n' ' ')
-check "extra ships: ships $lv(next at $nb)" "[ \"$lv\" = '03 04 05 07 ' ] && [ \"$nb\" = '025000 100000 ' ]"
+sp=$(echo "$out" | grep "^mem $(sym snd_ptr)" | cut -d: -f2 | tr -d ' '); FXE=$(sym fx_extra)
+check "extra ships: ships $lv(next at $nb), with their beeps (sound at \$$sp, fx_extra \$$FXE)" "[ \"$lv\" = '03 04 05 07 ' ] && [ \"$nb\" = '025000 100000 ' ] && [ \$((0x$sp)) -ge \$((0x$FXE)) ] && [ \$((0x$sp)) -lt \$((0x$FXE + 40)) ]"
 mvk=""; for i in $(seq 1 6); do mvk="$mvk A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
 out=$(run frames:30 'type: ' frames:250 poke:$(sym round),03 poke:$LIVESV,09 "type:$mvk" frames:1500 mem:$SCV,3)
 sc=$(echo "$out" | grep "^mem $SCV" | cut -d: -f2 | tr -d ' '); scn=$(echo $sc | sed 's/^0*//'); scn=${scn:-0}
@@ -327,20 +328,29 @@ for x in start 0 20 58 100 111; do
 done
 check "an unmoving ship is lost within 30 s ($times)" "[ -z \"$slow\" ]"
 
+# The budget runs play the same game on every build: the random seeds are
+# fixed as the game starts (the start-up seed comes from the free-running
+# counter, so any code change played a different game and the figure
+# wandered by a percent or two), and with no high score file on the card
+# (a high score changes what the status bar draws).
+SEEDS="poke:$(sym seed),A5C3 poke:$(sym st_seed),5A3C"
+rm -f $SD/STARFALL.HI
+
 # 5. The frame budget holds in realistic play: two minutes of sweeping
 #    side to side with fire held, through the area's full waves (the
 #    old test, firing straight up from the centre, missed a regression).
 mv=""; for i in $(seq 1 60); do mv="$mv A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
-over=$(run dbgport:BE00 frames:30 'type: ' frames:250 "type:$mv" frames:7200 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
+over=$(run dbgport:BE00 frames:30 'type: ' $SEEDS frames:250 "type:$mv" frames:7200 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
        awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "frames over budget, sweeping with fire held: ${over}% (limit 2%)" "awk 'BEGIN{exit !($over <= 2.0)}'"
 
+rm -f $SD/STARFALL.HI
 # 5b. The fortress fight stays within budget too (the busiest boss: one
 #     escort at a time), sweeping under it; and its patrolling envoys never
 #     enter the hull's box.
 mvf=""; for i in $(seq 1 25); do mvf="$mvf A A A A A A A A A A S S S S S S S S S S S S S S S S S S S S A A A A A A A A A A"; done
 k90=""; for i in $(seq 1 90); do k90="$k90 frames:20 poke:$IV,F0"; done
-over=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 frames:500 \
+over=$(run frames:30 'type: ' $SEEDS frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 frames:500 \
        dbgport:BE00 "type:$mvf" $k90 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
        awk '$1>14700 && $1<100000 {o++} {n++} END{printf "%.1f", 100*o/n}')
 check "the fortress fight: frames over budget ${over}% (limit 8%)" "awk 'BEGIN{exit !($over <= 8.0)}'"
@@ -351,9 +361,10 @@ ov=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$ARE
 set -- $ov
 check "the fortress's envoys patrol beside it, never into it (overlaps $1; left x from $2, right x to $3)" "[ $1 -eq 0 ] && [ $2 -lt 34 ] && [ $3 -gt 84 ]"
 
+rm -f $SD/STARFALL.HI
 # 5c. The hardest rounds stay within budget in normal play (more bombs):
 #     the round-5 settings, sweeping with fire held, two minutes.
-over=$(run dbgport:BE00 frames:30 'type: ' frames:250 poke:$(sym dlev),04 poke:$(sym dgap),08 poke:$DV,60040A08 poke:$LIVES,09 "type:$mv" frames:7200 | \
+over=$(run dbgport:BE00 frames:30 'type: ' $SEEDS frames:250 poke:$(sym dlev),04 poke:$(sym dgap),08 poke:$DV,60040A08 poke:$LIVES,09 "type:$mv" frames:7200 | \
        grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "the hardest rounds: frames over budget ${over}% (limit 5%: as the boss fights)" "awk 'BEGIN{exit !($over <= 5.0)}'"
 
