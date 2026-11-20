@@ -753,8 +753,8 @@ blue.  `bench/waves.asm` converted:
     open fn 2 with B=$42, PB_IN/PB_OUT | file 1, read fn 6 / write fn
     12, close fn 0); card errors ignored.  Status bar: SCORE 000000  HI
     000000  SHIPS 3 (exactly 32 columns; HI follows a new record live,
-    hi_check in status_update); the title shows HIGH SCORE under the
-    logo.  check 1d.  A top-five table with initials could follow.
+    hi_check in status_update); only there (the owner: the title was
+    crowded with it).  check 1d.  A top-five table with initials could follow.
   * **PI-KEY10 support** (popular: modern keyboards, and two Atari
     2600-style joysticks): find out how a program reads its joysticks
     (keyboard matrix emulation or its own port) before designing; the

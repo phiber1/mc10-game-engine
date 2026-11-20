@@ -2710,18 +2710,6 @@ title_draw:
                 ldx     #TXT_AT(12,4)   ; the name, big: 8 letters of 3 bytes
                 ldd     #s_title
                 jsr     big_str
-                ldaa    col_o           ; the high score
-                staa    txt_col
-                ldx     #TXT_AT(46,7)
-                ldd     #s_high
-                jsr     txt_str
-                ldaa    #TXT_WHITE
-                staa    txt_col
-                ldx     #TXT_AT(46,18)
-                ldaa    #3
-                staa    tx_n
-                ldd     #hiscore
-                jsr     txt_bcd
                 ldaa    col_o
                 staa    txt_col
                 ldx     #TXT_AT(56,9)
@@ -3246,8 +3234,6 @@ anim_boom:      fdb     boom1_dsc
 s_score:        fcc     "SCORE"
                 fcb     0
 s_hi:           fcc     "HI"
-                fcb     0
-s_high:         fcc     "HIGH SCORE"
                 fcb     0
 s_hifile:       fcc     "STARFALL.HI"
 S_HIFILE_LEN    equ     *-s_hifile
