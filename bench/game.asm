@@ -314,8 +314,7 @@ game_start_b1:  clr     0,x
                 clr     spray_t
                 ldaa    #FIRE_DELAY
                 staa    cooldown
-                ldaa    #1
-                staa    status_t
+                jsr     status_labels   ; the bar, labels and all
                 ldaa    #BAND
                 staa    sm_band
                 jsr     ship_place
@@ -2348,20 +2347,16 @@ sc_mid:         daa
 ; always in front: aliens slide out from under it.
 BUF_AT          function row,col,status_buf+(row)*ROW_BYTES+(col)
 
-status_update:
-                tst     status_t
-                beq     su_done
-                clr     status_t
-                ldx     #status_buf     ; blank
-                clra
-                clrb
-status_update_b1:
+status_labels:                          ; a game's start: the bar from
+                ldx     #status_buf     ; scratch (blank, the labels, then
+                clra                    ; every figure); afterwards only the
+                clrb                    ; figures change
+status_labels_b1:
                 std     0,x
                 inx
                 inx
                 cpx     #status_buf+BAND*ROW_BYTES
-                bne     status_update_b1
-                jsr     hi_check        ; a new record?  (HI follows it)
+                bne     status_labels_b1
                 ldaa    col_o
                 staa    txt_col
                 ldx     #BUF_AT(1,0)    ; SCORE 000000  HI 000000  SHIPS 3
@@ -2373,6 +2368,13 @@ status_update_b1:
                 ldx     #BUF_AT(1,25)
                 ldd     #s_ships
                 jsr     txt_str
+                bsr     su_hi
+                ldaa    #1
+                staa    status_t
+status_update:                          ; the figures, when they changed
+                tst     status_t        ; (only the digits: cheap on the
+                beq     su_done         ; frames a kill already makes busy)
+                clr     status_t
                 ldaa    #TXT_WHITE
                 staa    txt_col
                 ldx     #BUF_AT(1,6)
@@ -2380,17 +2382,22 @@ status_update_b1:
                 staa    tx_n
                 ldd     #score
                 jsr     txt_bcd
-                ldx     #BUF_AT(1,17)
-                ldaa    #3
-                staa    tx_n
-                ldd     #hiscore
-                jsr     txt_bcd
                 ldaa    lives
                 adda    #'0'
                 ldx     #BUF_AT(1,31)
                 jsr     txt_char
-                inc     sm_dirty        ; and show it
+                jsr     hi_check        ; a new record?  HI follows it
+                bcc     su_shown
+                bsr     su_hi
+su_shown:       inc     sm_dirty        ; and show it
 su_done:        rts
+su_hi:          ldaa    #TXT_WHITE      ; the high score's digits
+                staa    txt_col
+                ldx     #BUF_AT(1,17)
+                ldaa    #3
+                staa    tx_n
+                ldd     #hiscore
+                jmp     txt_bcd
 
 ; Repair the status bar (rows 0-6) if sprites touched it (or it changed):
 ; rows 1-5 (the text) are copied from status_buf, rows 0 and 6 (always
@@ -2527,8 +2534,9 @@ ld_digit_f1:    psha
 ; file means 0; card errors are ignored (the game never stops for it).
 
 hi_check:                               ; score above the record: it's the
-                ldaa    score           ; record now (compared as BCD, high
-                cmpa    hiscore         ; byte first)
+                                        ; record now (carry set) (compared as
+                ldaa    score           ; BCD, high byte first)
+                cmpa    hiscore
                 bhi     hi_check_f1
                 bne     hi_check_r
                 ldaa    score+1
@@ -2544,7 +2552,10 @@ hi_check_f1:    ldd     score
                 staa    hiscore+2
                 ldaa    #1
                 staa    hi_new
-hi_check_r:     rts
+                sec                     ; (carry: a new record)
+                rts
+hi_check_r:     clc
+                rts
 
 hi_pb:                                  ; the parameter block: zero, then the
                 ldx     #ovl_pb         ; name and A = access | file number

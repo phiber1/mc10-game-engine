@@ -754,7 +754,9 @@ blue.  `bench/waves.asm` converted:
     12, close fn 0); card errors ignored.  Status bar: SCORE 000000  HI
     000000  SHIPS 3 (exactly 32 columns; HI follows a new record live,
     hi_check in status_update); only there (the owner: the title was
-    crowded with it).  check 1d.  A top-five table with initials could follow.
+    crowded with it).  check 1d.  The bar's labels are drawn once per game (status_labels); a score
+    change rewrites only the digits (HI only when beaten): drawing HI
+    too had pushed the normal-play budget to 2.3% over; now 0.5%.  A top-five table with initials could follow.
   * **PI-KEY10 support** (popular: modern keyboards, and two Atari
     2600-style joysticks): find out how a program reads its joysticks
     (keyboard matrix emulation or its own port) before designing; the
