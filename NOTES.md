@@ -821,6 +821,13 @@ blue.  `bench/waves.asm` converted:
   B3_CAN_*) keeps them at 6 or less / 18 or more.  The waves were
   verified unchanged (yesterday's and today's builds play the same game
   frame for frame).  Boss 2's (8, 14) stay: the owner likes its fight.
+* **Round 1 made gentler (owner, 2026-11-20: "can't get to Area 4").**
+  Bombs 2 rows a frame in round 1 (bomb_spd, +1/4 a round to 3 by round
+  5; BOMB_SPEED $0200), spray window 36 of 128 frames (+15 a round to
+  96), at least 9 frames between bombs (-1 a round to 5).  The scripted
+  sweep loses ~4 ships in two minutes instead of 8-9 (three seeds); a
+  parked ship is still lost within 30 s.  The normal-play budget sits at
+  1.8% (slower bombs stay on screen longer).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

@@ -285,10 +285,10 @@ bp=$(echo "$out" | grep "^mem $(sym banner_p)" | cut -d: -f2 | tr -d ' ')
 rt=$(echo "$out" | grep "^mem $(sym s_round)" | cut -d: -f2 | awk '{for(i=3;i<=9;i++) printf "%c", strtonum("0x"$i)}')
 check "a game begins with a banner: $rt" "[ $bp = $(sym s_round) ] && [ \"$rt\" = 'ROUND 1' ]"
 
-# 4i. Each round is harder, up to round 5: round 1 as designed (bomb
-#     spray 48 of 128 frames, 7 between bombs, cannons every 22, envoys
-#     every 16); the finale's new round 2 takes a step (60, 6, 19, 14);
-#     from round 5 on, the hardest (96, 4, 10, 8).  Even rounds swap the
+# 4i. Each round is harder, up to round 5: round 1 gentle (bomb spray 36
+#     of 128 frames, 9 between bombs, cannons every 22, envoys every 16,
+#     bombs 2 rows a frame); the finale's new round 2 takes a step (51, 8,
+#     19, 14); from round 5 on, the hardest (96, 5, 10, 8, 3 rows).  Even rounds swap the
 #     aliens' colours.
 DV=$(sym spray_on)    # spray_on, bomb_gap, boss_fire, env_fire follow it
 dvals() { echo "$1" | grep "^mem $DV" | sed -n "${2}p" | cut -d: -f2 | awk '{printf "%d %d %d %d", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3), strtonum("0x"$4)}'; }
@@ -297,7 +297,7 @@ out=$(run frames:30 'type: ' frames:200 mem:$DV,4 mem:$AF,1 poke:$AREA,03 "poke:
 d1=$(dvals "$out" 1); d2=$(dvals "$out" 2); f1=$(echo "$out" | memval $AF 1); f2=$(echo "$out" | memval $AF 2)
 out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$(sym round),1 mem:$AF,1)
 d6=$(dvals "$out" 1); f6=$(echo "$out" | memval $AF 1)
-check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '48 7 22 16' ] && [ \"$d2\" = '60 6 19 14' ] && [ \"$d6\" = '96 4 10 8' ]"
+check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '36 9 22 16' ] && [ \"$d2\" = '51 8 19 14' ] && [ \"$d6\" = '96 5 10 8' ]"
 check "even rounds swap the aliens' colours (rounds 1, 2, 6: $f1 $f2 $f6)" "[ $f1 -eq 0 ] && [ $f2 -eq 1 ] && [ $f6 -eq 1 ]"
 
 # 4j. Extra ships at 10,000 and every 25,000 (a big jump passes several);
@@ -365,7 +365,7 @@ check "the fortress's envoys patrol beside it, never into it (overlaps $1; left 
 rm -f $SD/STARFALL.HI
 # 5c. The hardest rounds stay within budget in normal play (more bombs):
 #     the round-5 settings, sweeping with fire held, two minutes.
-over=$(run dbgport:BE00 frames:30 'type: ' $SEEDS frames:250 poke:$(sym dlev),04 poke:$(sym dgap),08 poke:$DV,60040A08 poke:$LIVES,09 "type:$mv" frames:7200 | \
+over=$(run dbgport:BE00 frames:30 'type: ' $SEEDS frames:250 poke:$(sym dlev),04 poke:$(sym dgap),08 poke:$DV,60050A08 poke:$(sym bomb_spd),0300 poke:$LIVES,09 "type:$mv" frames:7200 | \
        grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "the hardest rounds: frames over budget ${over}% (limit 5%: as the boss fights)" "awk 'BEGIN{exit !($over <= 5.0)}'"
 

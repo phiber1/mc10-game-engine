@@ -24,7 +24,8 @@
 SHIP_SPEEDX     equ     $0100           ; 1 artifact pixel (2 screen pixels)
 SHIP_SPEED      equ     $0200           ; 2 rows a frame
 SHOT_SPEED      equ     $0400
-BOMB_SPEED      equ     $0300
+BOMB_SPEED      equ     $0200           ; round 1: 2 rows a frame (+1/4 a round,
+                                        ; to 3: the bomb's halo is 3 rows)
 SHIP_XMAX       equ     128-ship_W
 AL_W            equ     saucer_W        ; all alien types share one box size
 AL_H            equ     saucer_H
@@ -36,9 +37,9 @@ MAX_ALIVE       equ     8               ; live aliens on screen at most
 HI_SIZE         equ     6               ; STARFALL.HI: its bytes,
 HI_FILE         equ     1               ; ... its file number (SD: 1-2)
 FORT_ALIVE      equ     1               ; ... in the fortress fight (it's busy)
-SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
+SPRAY_ON        equ     36              ; bombs may drop for 36 frames (round 1),
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
-BOMB_GAP        equ     7               ; at least 7 frames between bombs
+BOMB_GAP        equ     9               ; at least 9 frames between bombs (round 1)
 DIFF_MAX        equ     4               ; rounds get harder up to round 5 (see
                                         ; set_diff)
 FF_HOPL         equ     $02             ; F_FLAGS: back in at a random x (event 2)
@@ -159,6 +160,7 @@ spray_on        rmb     1               ; ... frames of each bomb cycle that spr
 bomb_gap        rmb     1               ; ... frames between bombs at least
 boss_fire       rmb     1               ; ... frames between cannon shots
 env_fire        rmb     1               ; ... frames between envoy bombs
+bomb_spd        rmb     2               ; ... bombs' speed (rows a frame, 8.8)
 wp_wrapped      rmb     1
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
@@ -737,7 +739,7 @@ db_done_f1:     ldd     bm_xy
                 clr     O_YF,x
                 ldd     bm_dx
                 std     O_DX,x
-                ldd     #BOMB_SPEED
+                ldd     bomb_spd
                 std     O_DY,x
                 ldd     #bomb_dsc
                 std     O_SPR,x
@@ -769,7 +771,7 @@ bf_slot:        ldd     bm_xy
                 clr     O_YF,x
                 ldd     #0
                 std     O_DX,x
-                ldd     #BOMB_SPEED
+                ldd     bomb_spd
                 std     O_DY,x
                 ldd     #bomb_dsc
                 std     O_SPR,x
@@ -2062,8 +2064,9 @@ firework_f1:    stx     obj
                 jmp     boom_start
 
 ; The difficulty for the round: dlev = round - 1 (at most DIFF_MAX).
-; Each step: the bomb spray window 12 frames longer (of 128), the gap
-; between bombs a frame shorter (down to 4), cannon shots 3 frames and envoy bombs 2
+; Each step: bombs a quarter row a frame faster (2 -> 3), the bomb
+; spray window 15 frames longer (36 -> 96 of 128), the gap between bombs
+; a frame shorter (9 -> 5), cannon shots 3 frames and envoy bombs 2
 ; frames apart less, waves launched 2 frames closer, two more hits for
 ; each boss core and one more for each envoy.  Round 1 is as designed.
 set_diff:
@@ -2077,7 +2080,7 @@ set_diff:
                 bls     set_diff_f1
                 ldaa    #DIFF_MAX
 set_diff_f1:    staa    dlev
-                ldab    #12
+                ldab    #15
                 mul
                 addb    #SPRAY_ON
                 stab    spray_on
@@ -2087,6 +2090,11 @@ set_diff_f1:    staa    dlev
                 bcc     set_diff_f2
                 ldaa    #4
 set_diff_f2:    staa    bomb_gap
+                ldaa    dlev            ; bombs a quarter row a frame faster
+                ldab    #$40            ; a round
+                mul
+                addd    #BOMB_SPEED
+                std     bomb_spd
                 ldaa    dlev
                 ldab    #3
                 mul
