@@ -3251,11 +3251,11 @@ logo_font:
                 fcb     0
 lg_expand:      fcb     $00, $03, $0C, $0F, $30, $33, $3C, $3F ; 4 pixels -> 4
                 fcb     $C0, $C3, $CC, $CF, $F0, $F3, $FC, $FF ; white bit pairs
-; the logo's colour bands, a row each (0 white, 1 orange, 2 blue), with
-; dithered seams
-bg_band:        fcb     0, 0, 0, 0, 0, 0, 0, 0, 1, 0
-                fcb     1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-                fcb     2, 1, 2, 2, 2, 2, 2, 2, 2, 2
+; the logo's colour bands, a row each (0 white, 1 orange, 2 blue): white
+; above, blue below (owner's choice), with a dithered seam
+bg_band:        fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+                fcb     0, 0, 0, 2, 0, 2, 2, 0, 2, 2
+                fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2
 col_draw:                               ; the colour check screen
                 jsr     cls
                 ldx     #TXT_AT(70,14)  ; a block that should look orange
