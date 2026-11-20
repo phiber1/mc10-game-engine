@@ -843,6 +843,10 @@ blue.  `bench/waves.asm` converted:
   the one just hit) and, if the sortie's wave is still launching, those
   still to launch; the bonus waits for them.  fx_bing is now two quick
   rising beeps (D6, E6).
+* **Logo letters (owner, 2026-11-20):** straight diagonals for the
+  curves of S, R and A.  logo_font: the six letters as 9x15 bitmaps
+  (rows drawn twice: 45-degree chamfers), expanded through lg_expand;
+  the font magnification is gone (letters not in logo_font stay blank).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

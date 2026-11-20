@@ -3052,9 +3052,9 @@ cast:           fdb     saucer_hr
                 fdb     TXT_AT(112,CAST_TXT), s_warper
                 fdb     0
 
-; big_str: X = screen, D = string: the logo letters, magnified (each
-; font pixel 3 artifact pixels wide and 6 rows tall: a letter is 3 bytes
-; by 30 rows) in colour bands (bg_band, through bg_cols)
+; big_str: X = screen, D = string: the logo's letters (logo_font: 9
+; pixels and a 3-pixel gap, 3 bytes, by 30 rows) in colour bands
+; (bg_band, through bg_cols)
 big_str:
                 std     bu_s
 big_str_b1:     pshx
@@ -3074,42 +3074,49 @@ big_str_b1:     pshx
 big_str_f1:     pulx
                 rts
 
-big_char:                               ; A = character, X = screen
-                stx     bg_scr
-                suba    #32
-                ldab    #5
-                mul
-                addd    #font
-                std     bg_g
-                ldaa    #5
+big_char:                               ; A = character, X = screen (letters
+                stx     bg_scr          ; not in the logo font stay blank)
+                ldx     #logo_font
+big_char_b1:    ldab    0,x
+                bne     big_char_f0
+                rts
+big_char_f0:    cba
+                beq     big_char_f1
+                ldab    #1+2*LOGO_ROWS
+                abx
+                bra     big_char_b1
+big_char_f1:    inx
+                stx     bg_g
+                ldaa    #LOGO_ROWS
                 staa    bg_n
                 clr     bg_row
-big_char_b1:    ldx     bg_g            ; a glyph row: 3 pixels (bit pairs
-                ldaa    0,x             ; 7-6, 5-4, 3-2) -> 3 bytes, each
-                inx                     ; pixel 3 artifact pixels wide
+big_char_row:   ldx     bg_g            ; a row: pixels in bits 15-7 -> 3
+                ldd     0,x             ; bytes of white bit pairs
+                inx
+                inx
                 stx     bg_g
-                clr     bg_b
-                clr     bg_b+1
-                clr     bg_b+2
-                bita    #$C0
-                beq     big_char_f1
-                ldab    #$FC
+                stab    bg_m            ; (bit 7: the ninth pixel)
+                tab
+                lsrb
+                lsrb
+                lsrb
+                lsrb
+                ldx     #lg_expand
+                abx
+                ldab    0,x
                 stab    bg_b
-big_char_f1:    bita    #$30
-                beq     big_char_f2
-                ldab    bg_b
-                orab    #$03
-                stab    bg_b
-                ldab    #$F0
+                anda    #15
+                tab
+                ldx     #lg_expand
+                abx
+                ldab    0,x
                 stab    bg_b+1
-big_char_f2:    bita    #$0C
-                beq     big_char_f3
-                ldab    bg_b+1
-                orab    #$0F
-                stab    bg_b+1
+                clrb
+                tst     bg_m
+                bpl     big_char_f2
                 ldab    #$C0
-                stab    bg_b+2
-big_char_f3:    ldaa    #6              ; 6 rows of it
+big_char_f2:    stab    bg_b+2
+                ldaa    #2              ; each row twice
                 staa    bg_k
 big_char_b2:    ldx     #bg_band        ; this row's colour mask
                 ldab    bg_row
@@ -3136,9 +3143,114 @@ big_char_b2:    ldx     #bg_band        ; this row's colour mask
                 dec     bg_k
                 bne     big_char_b2
                 dec     bg_n
-                beq     big_char_f4
-                jmp     big_char_b1
-big_char_f4:    rts
+                beq     big_char_r
+                jmp     big_char_row
+big_char_r:     rts
+; the logo's own letters (owner: straight diagonals for the curves): 9
+; pixels by 15 rows, each row drawn twice (one pixel per two rows: 45
+; degrees, artifact pixels being twice as wide as tall); per letter its
+; code, then a word a row, pixels in bits 15-7 (1 = lit)
+LOGO_ROWS       equ     15
+logo_font:
+                fcb     'S'
+                fdb     $3F80            ; ..#######
+                fdb     $7F80            ; .########
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $FF00            ; ########.
+                fdb     $FF80            ; #########
+                fdb     $7F80            ; .########
+                fdb     $0380            ; ......###
+                fdb     $0380            ; ......###
+                fdb     $0380            ; ......###
+                fdb     $0380            ; ......###
+                fdb     $FF00            ; ########.
+                fdb     $FE00            ; #######..
+                fcb     'T'
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fdb     $1C00            ; ...###...
+                fcb     'A'
+                fdb     $3E00            ; ..#####..
+                fdb     $7F00            ; .#######.
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fcb     'R'
+                fdb     $FE00            ; #######..
+                fdb     $FF00            ; ########.
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $FF00            ; ########.
+                fdb     $FE00            ; #######..
+                fdb     $EE00            ; ###.###..
+                fdb     $E700            ; ###..###.
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fdb     $E380            ; ###...###
+                fcb     'F'
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $FE00            ; #######..
+                fdb     $FE00            ; #######..
+                fdb     $FE00            ; #######..
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fcb     'L'
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $E000            ; ###......
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fdb     $FF80            ; #########
+                fcb     0
+lg_expand:      fcb     $00, $03, $0C, $0F, $30, $33, $3C, $3F ; 4 pixels -> 4
+                fcb     $C0, $C3, $CC, $CF, $F0, $F3, $FC, $FF ; white bit pairs
 ; the logo's colour bands, a row each (0 white, 1 orange, 2 blue), with
 ; dithered seams
 bg_band:        fcb     0, 0, 0, 0, 0, 0, 0, 0, 1, 0
