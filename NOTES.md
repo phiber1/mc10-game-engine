@@ -761,9 +761,18 @@ blue.  `bench/waves.asm` converted:
     keyboard, so joysticks arrive as key presses; its default for
     Joystick 1 is W, A, S, Z and SPACE (the owner checked pikey.tech),
     exactly what kbd_read reads.  Supported as is, nothing to change.
-  * **Difficulty rising each round** (round counts from 1; nothing
-    changes per round yet): e.g. faster aliens or bombs, more bombs,
-    more boss hits.
+  * **Done (2026-11-19): difficulty rising each round.**  set_diff (at a
+    game's start and each new round in the finale): dlev = round - 1, at
+    most DIFF_MAX 4.  Per step: bomb spray window +12 frames (48 -> 96 of
+    128), bombs 1 frame closer (7 -> 3), cannons 3 frames (22 -> 10),
+    envoy bombs 2 (16 -> 8), wave launches 2 frames closer (min 6), +2
+    hits per boss core, +1 per envoy.  Bomb speed unchanged (the bomb's
+    halo is 3 rows).  Round 1 as designed.  Checks 4i and 5c (hardest
+    settings 3.4% over budget in normal play, limit 5% like the boss
+    fights; if it feels slow, bomb_gap min 4).
+  * **File names:** GAME.BIN -> STARFALL.BIN, and the boss overlays with
+    an SF or STAR prefix (e.g. SFBOSS1.BIN), so users see what belongs to
+    the game.
   * **Boss 4's look:** the fortress art is still Claude's first draft;
     the owner hasn't decided on changes yet.
 * **Agreed plan, in order:**

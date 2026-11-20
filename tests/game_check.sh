@@ -273,6 +273,18 @@ bp=$(echo "$out" | grep "^mem $(sym banner_p)" | cut -d: -f2 | tr -d ' ')
 rt=$(echo "$out" | grep "^mem $(sym s_round)" | cut -d: -f2 | awk '{for(i=3;i<=9;i++) printf "%c", strtonum("0x"$i)}')
 check "a game begins with a banner: $rt" "[ $bp = $(sym s_round) ] && [ \"$rt\" = 'ROUND 1' ]"
 
+# 4i. Each round is harder, up to round 5: round 1 as designed (bomb
+#     spray 48 of 128 frames, 7 between bombs, cannons every 22, envoys
+#     every 16); the finale's new round 2 takes a step (60, 6, 19, 14);
+#     from round 5 on, the hardest (96, 3, 10, 8).
+DV=$(sym spray_on)    # spray_on, bomb_gap, boss_fire, env_fire follow it
+dvals() { echo "$1" | grep "^mem $DV" | sed -n "${2}p" | cut -d: -f2 | awk '{printf "%d %d %d %d", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3), strtonum("0x"$4)}'; }
+out=$(run frames:30 'type: ' frames:200 mem:$DV,4 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4)
+d1=$(dvals "$out" 1); d2=$(dvals "$out" 2)
+out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$(sym round),1)
+d6=$(dvals "$out" 1)
+check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '48 7 22 16' ] && [ \"$d2\" = '60 6 19 14' ] && [ \"$d6\" = '96 3 10 8' ]"
+
 # 4c. No safe spot ("pizza break"): a ship that never moves is lost
 #     within 30 seconds of area 1, at the start position and elsewhere.
 #     (The bug: area 1's first wave dropped bombs at fixed points of its
@@ -311,6 +323,12 @@ ov=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$ARE
      grep '^mem' | paste - - - | awk '{b=strtonum("0x"$3); l=strtonum("0x"$6); r=strtonum("0x"$9); if(l+10>b+1 || r<b+35) o++; if(l<mn||!mn) mn=l; if(r>mx) mx=r} END{printf "%d %d %d", o+0, mn, mx}')
 set -- $ov
 check "the fortress's envoys patrol beside it, never into it (overlaps $1; left x from $2, right x to $3)" "[ $1 -eq 0 ] && [ $2 -lt 34 ] && [ $3 -gt 84 ]"
+
+# 5c. The hardest rounds stay within budget in normal play (more bombs):
+#     the round-5 settings, sweeping with fire held, two minutes.
+over=$(run dbgport:BE00 frames:30 'type: ' frames:250 poke:$(sym dlev),04 poke:$(sym dgap),08 poke:$DV,60030A08 poke:$LIVES,09 "type:$mv" frames:7200 | \
+       grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
+check "the hardest rounds: frames over budget ${over}% (limit 5%: as the boss fights)" "awk 'BEGIN{exit !($over <= 5.0)}'"
 
 echo "----"
 echo "$pass passed, $fail failed"

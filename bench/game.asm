@@ -39,6 +39,8 @@ FORT_ALIVE      equ     1               ; ... in the fortress fight (it's busy)
 SPRAY_ON        equ     48              ; bombs may drop for 48 frames,
 SPRAY_OFF       equ     80              ; then a quiet spell of 80
 BOMB_GAP        equ     7               ; at least 7 frames between bombs
+DIFF_MAX        equ     4               ; rounds get harder up to round 5 (see
+                                        ; set_diff)
 FF_HOPL         equ     $02             ; F_FLAGS: back in at a random x (event 2)
 FF_HOPR         equ     $04             ; ... for right circles (event 3)
 FF_WAIT1        equ     $08             ; F_FLAGS bits 3-7: a hidden wait (count)
@@ -149,6 +151,12 @@ bg_cols         rmb     3               ; white, orange, blue masks
 bg_m            rmb     1               ; ... the row's mask
 fin_t           rmb     2               ; the finale's countdown
 round           rmb     1               ; 1, 2 ... (each fortress begins another)
+dlev            rmb     1               ; difficulty: round - 1, at most DIFF_MAX
+dgap            rmb     1               ; ... dlev x 2 (launch gaps, core hits)
+spray_on        rmb     1               ; ... frames of each bomb cycle that spray
+bomb_gap        rmb     1               ; ... frames between bombs at least
+boss_fire       rmb     1               ; ... frames between cannon shots
+env_fire        rmb     1               ; ... frames between envoy bombs
 wp_wrapped      rmb     1
 banner_p        rmb     2               ; the banner being shown
 bu_s            rmb     2
@@ -323,6 +331,7 @@ game_start_b1:  clr     0,x
                 clr     boss_state
                 ldaa    #1
                 staa    round
+                jsr     set_diff
                 ldaa    #1
                 staa    warpf
                 ldx     #fx_start       ; the start fanfare, over the map
@@ -411,8 +420,13 @@ wl_wait:        inc     wv_timer        ; none free: try next frame
                 rts
 wave_logic_f1:  stx     obj
                 ldx     wv_ptr
-                ldab    W_GAP,x
-                stab    wv_timer
+                ldab    W_GAP,x         ; (closer together in later rounds,
+                subb    dgap            ; but at least 6 frames)
+                bcs     wl_gap_f1
+                cmpb    #6
+                bcc     wl_gap_f2
+wl_gap_f1:      ldab    #6
+wl_gap_f2:      stab    wv_timer
                 ldaa    wv_x            ; this alien's entry x; the next one's
                 tab                     ; is W_XSTEP further across ...
                 addb    W_XSTEP,x
@@ -695,7 +709,7 @@ bomb_dx:        std     bm_xy
                 ldaa    bomb_cd         ; too soon after the last bomb?
                 bne     db_done
                 ldaa    spray_t         ; in a spray window?
-                cmpa    #SPRAY_ON
+                cmpa    spray_on
                 bcc     db_done
                 ldaa    ship+O_Y        ; far enough above the ship to
                 suba    #BOMB_WARN      ; dodge?
@@ -720,7 +734,7 @@ db_done_f1:     ldd     bm_xy
                 std     O_DY,x
                 ldd     #bomb_dsc
                 std     O_SPR,x
-                ldaa    #BOMB_GAP
+                ldaa    bomb_gap
                 staa    bomb_cd
                 ldx     #fx_drop
                 ldaa    #1
@@ -1238,7 +1252,8 @@ boss_start:
                 ldx     bm_xy
                 ldaa    BT_ENV,x
                 staa    env_left
-                ldaa    BT_EHP,x
+                ldaa    BT_EHP,x        ; (one more a round, after the first)
+                adda    dlev
                 staa    env_hp
                 staa    env_hp+1
                 ldd     OVL_BASE        ; the hull (the overlay's header)
@@ -1313,7 +1328,8 @@ bst_core:       ldaa    ci
                 ldab    ci
                 abx
                 pulb
-                stab    0,x             ; hits
+                addb    dgap            ; hits (two more a round)
+                stab    0,x
                 staa    3*NCORE,x       ; stage
                 clr     NCORE,x         ; no flash
                 ldab    #CS_OPEN        ; open from the start: stage 0, no
@@ -1344,7 +1360,7 @@ bst_cnext:      inc     ci
                 cmpa    #NCORE
                 bne     bst_core
                 jsr     boss_attach
-                ldaa    #ENV_FIRE
+                ldaa    env_fire
                 staa    env_t
                 ldx     wv_start
                 stx     wv_ptr
@@ -1352,7 +1368,7 @@ bst_cnext:      inc     ci
                 clr     area_done
                 ldaa    #WARN_TIME      ; escorts after the warning
                 staa    wv_timer
-                ldaa    #BOSS_FIRE
+                ldaa    boss_fire
                 staa    boss_t
                 ldx     #fx_bossin
                 ldaa    #5
@@ -1406,7 +1422,7 @@ bl_fight_f1:    ldd     #0
                 std     O_DX,x
 bl_fight_f2:    dec     boss_t          ; the cannons, in turn
                 bne     bl_core
-                ldaa    #BOSS_FIRE
+                ldaa    boss_fire
                 staa    boss_t
                 ldx     boss_can        ; the next cannon in the list (a
                 ldab    boss_ci         ; count, then x and y offsets each)
@@ -1631,7 +1647,7 @@ env_bomb:
                 bne     eb_done
                 dec     env_t
                 bne     eb_done
-                ldaa    #ENV_FIRE
+                ldaa    env_fire
                 staa    env_t
                 com     env_side
                 ldx     #env1
@@ -1992,7 +2008,8 @@ fin_f3:         ldd     fin_t
                 bcc     fin_f5
                 inca
                 staa    round
-fin_f5:         bsr     round_banner
+                jsr     set_diff        ; (harder from now on)
+fin_f5:         jsr     round_banner
 fin_f4:         ldd     fin_t           ; fireworks, every 4 frames
                 subd    #FIN_T4
                 bcs     fin_r
@@ -2030,6 +2047,39 @@ firework_f1:    stx     obj
                 std     O_DY,x
                 ldd     #anim_boom
                 jmp     boom_start
+
+; The difficulty for the round: dlev = round - 1 (at most DIFF_MAX).
+; Each step: the bomb spray window 12 frames longer (of 128), the gap
+; between bombs a frame shorter, cannon shots 3 frames and envoy bombs 2
+; frames apart less, waves launched 2 frames closer, two more hits for
+; each boss core and one more for each envoy.  Round 1 is as designed.
+set_diff:
+                ldaa    round
+                deca
+                cmpa    #DIFF_MAX
+                bls     set_diff_f1
+                ldaa    #DIFF_MAX
+set_diff_f1:    staa    dlev
+                ldab    #12
+                mul
+                addb    #SPRAY_ON
+                stab    spray_on
+                ldaa    #BOMB_GAP
+                suba    dlev
+                staa    bomb_gap
+                ldaa    dlev
+                ldab    #3
+                mul
+                negb
+                addb    #BOSS_FIRE
+                stab    boss_fire
+                ldaa    dlev
+                asla
+                staa    dgap
+                nega
+                adda    #ENV_FIRE
+                staa    env_fire
+                rts
 
 round_banner:                           ; "ROUND n" (the current round)
                 ldaa    round
