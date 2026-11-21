@@ -3,7 +3,7 @@
 ; NSPR bouncing sprites on a black screen.  Every frame each sprite is
 ; erased, moved and redrawn.
 ;   ART=0   16x16 mono sprite ("ball", 256x192 mode)
-;   ART=1   8x8 artifact-colour sprite ("orb", 128x192 four-colour mode)
+;   ART=1   8x8 artifact-color sprite ("orb", 128x192 four-color mode)
 ;   MODE=0  OR draw, clear-to-black erase (fastest; overlaps damage each other)
 ;   MODE=1  XOR draw, XOR erase           (overlaps are safe)
 ;   SLOW=1  every sprite moves 1 pixel per frame (default: 1-3 x, 1-2 y)

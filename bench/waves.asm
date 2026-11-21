@@ -8,14 +8,14 @@
 ; SPACE fires) shoots them; bombs hitting the ship only make a sound (no
 ; death yet).  A star field falls behind everything.
 ;
-;   Artifact colour (128x192, four colours): horizontal speeds are half
+;   Artifact color (128x192, four colors): horizontal speeds are half
 ;   the vertical ones, so paths keep their shapes.
 ;
 ;   METER=1     CPU meter
 
 #define OBJ_EXTRA 10                    /* flight (7) + animation (3) */
 #define AN_BASE 7                       /* animation bytes after flight's */
-#define FL_HALFX 1                      /* artifact colour: 128 pixels across */
+#define FL_HALFX 1                      /* artifact color: 128 pixels across */
 #include "layout.inc"
 
 #define NALIEN 10

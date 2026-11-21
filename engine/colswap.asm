@@ -1,6 +1,6 @@
 ; colswap.asm: swap orange and blue in compiled artifact sprites.
 ;
-; Which colour a bit pair shows (10 or 01) depends on the VDG's colour
+; Which color a bit pair shows (10 or 01) depends on the VDG's color
 ; phase, which on real NTSC hardware can change between power-ups.  Rather
 ; than keeping a second copy of the art, col_swap walks each sprite's
 ; compiled halo routines and swaps the two bits of every pixel in every
@@ -8,7 +8,7 @@
 ; again swaps back.
 ;
 ; col_swap      X = 0-terminated list of sprite descriptors (spritec's
-;               NAME_dsc for artifact halo sprites): swap their colours.
+;               NAME_dsc for artifact halo sprites): swap their colors.
 ;               Uses A, B, X.
 ;
 ; It decodes only the instructions spritec generates: LDAA/ORAA/EORA #

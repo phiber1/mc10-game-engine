@@ -3,8 +3,8 @@
 A game engine for the TRS-80 MC-10's 256x192 RG6 graphics mode, for
 machines with the internal 8K RAM mod (plus an MCX32-SD for memory).  It
 has a software sprite engine and an interrupt-driven sound engine, in 6803
-assembly.  Both RG6 colour models are supported: true 256x192 monochrome,
-and NTSC artifact colour at 128x192 in four colours.
+assembly.  Both RG6 color models are supported: true 256x192 monochrome,
+and NTSC artifact color at 128x192 in four colors.
 
 **StarFall**, a complete vertical shooter, is the first game built on it:
 [proj-starfall](https://github.com/phiber1/proj-starfall) (this repository

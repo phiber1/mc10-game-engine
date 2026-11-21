@@ -2,8 +2,8 @@
 ;
 ; One character = one byte across (three artifact pixels and a gap) by 5
 ; rows, so a line holds 32 characters.  txt_col masks the white font into
-; a colour: TXT_WHITE, TXT_ORANGE or TXT_BLUE (orange/blue as at colour
-; phase 0; after a colour swap the program uses the other one).  Text is
+; a color: TXT_WHITE, TXT_ORANGE or TXT_BLUE (orange/blue as at color
+; phase 0; after a color swap the program uses the other one).  Text is
 ; drawn with plain stores, so it replaces what was under it.
 ;
 ; txt_char      A = character (ASCII 32-90), X = screen address: draw it.
@@ -38,7 +38,7 @@ txt_char:
                 std     tx_r+2
                 ldaa    4,x
                 staa    tx_r+4
-                ldx     tx_scr          ; ... coloured onto the screen
+                ldx     tx_scr          ; ... colored onto the screen
                 ldaa    tx_r
                 anda    txt_col
                 staa    0,x

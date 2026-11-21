@@ -4,7 +4,7 @@
 ;   make run-view                         sprites/game.spr
 ;   make run-view VIEW=sprites/mine.spr   any other sprite file
 ;
-; Each sprite is drawn once (artifact colour, halo sprites with their
+; Each sprite is drawn once (artifact color, halo sprites with their
 ; halo routine, at shift 0 or its one shift), named underneath, left to
 ; right in rows.  tools/sprview.py makes the drawing code from the file.
 

@@ -97,7 +97,7 @@ an_obj          rmb     2               ; sprman.asm animation
 an_tmp          rmb     2
 sm_band         rmb     1               ; sprman: rows of a status band (0 = none)
 sm_dirty        rmb     1               ; sprman: sprites touched the band
-txt_col         rmb     1               ; text.asm: colour mask
+txt_col         rmb     1               ; text.asm: color mask
 tx_scr          rmb     2
 tx_scr2         rmb     2
 tx_g            rmb     2

@@ -18,7 +18,7 @@ G = {
 def row(r): return (0xC0 if r[0]=='#' else 0)|(0x30 if r[1]=='#' else 0)|(0x0C if r[2]=='#' else 0)
 out=["; font.asm: a 3x5 font for artifact mode, generated from the glyph art",
      "; in the comments (one byte per character cell: three artifact pixels",
-     "; and a gap; white bit pairs, coloured by masking).  ASCII 32-90.",
+     "; and a gap; white bit pairs, colored by masking).  ASCII 32-90.",
      "font:"]
 for c in range(32,91):
     ch=chr(c); g=G.get(ch)

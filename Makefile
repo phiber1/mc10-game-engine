@@ -79,7 +79,7 @@ build/%.bin: build/%.p build/p2decb
 	build/p2decb $< $@ $(LOAD) $(SEGMENTS)
 
 # Sprite test variants for visual checking: build/sp_<art><mode>.c10
-#   art m = 16x16 mono (shown without artifact colours), a = 8x8 artifact
+#   art m = 16x16 mono (shown without artifact colors), a = 8x8 artifact
 #   mode 0 = OR + clear, 1 = XOR, 2 = self-erasing, 3 = XOR delta, 4 = halo,
 #   5 = 1-pixel halo at 1 pixel per frame
 # build/spk_<art><mode>.c10 are the same with the CPU meter (METER=1).
@@ -121,7 +121,7 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 	    -DNSPR=16 $(CPPDEFS) $< -o $@
 
 # Run in the emulator: the build/sd folder is the MCX32-SD's SD card;
-# LOADM the program, then EXEC.  Mono programs run with artifact colours
+# LOADM the program, then EXEC.  Mono programs run with artifact colors
 # off.  DBGLOG=FILE logs the debug port to FILE.
 SD      := build/sd
 sdname = $(shell echo $(1) | tr a-z A-Z)

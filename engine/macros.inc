@@ -15,7 +15,7 @@ DBGB            macro
                 endm
 
 ; CPU meter: METER_ON when work starts, METER_OFF when it ends.  The VDG's
-; colour set flips while working, so the screen and the RG6 border turn
+; color set flips while working, so the screen and the RG6 border turn
 ; green for exactly the work, like a raster-time bar.  Assembled only when
 ; METER is non-zero.  Goes through vdg_shadow so the speaker bit survives.
 ; Clobbers A.

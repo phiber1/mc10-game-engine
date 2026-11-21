@@ -8,8 +8,8 @@ the VMC10 for Linux emulator (github.com/phiber1/vmc10-linux).
 
 * High-performance software sprite engine, and an interrupt-driven sound
   engine.
-* Both RG6 colour models: true 256x192 monochrome (CSS=1, buff on black),
-  and NTSC artifact 128x192 in four colours (pixel pairs: 00 black,
+* Both RG6 color models: true 256x192 monochrome (CSS=1, buff on black),
+  and NTSC artifact 128x192 in four colors (pixel pairs: 00 black,
   11 white, 10/01 orange/blue, phase-dependent).
 * First milestone: proof-of-concept benchmarks:
   * how many sprites per event loop at 60 Hz and 30 Hz (8 is typical on
@@ -31,7 +31,7 @@ the VMC10 for Linux emulator (github.com/phiber1/vmc10-linux).
 ## Timing: a VBLANK substitute
 
 * No VBLANK interrupt (the 6847's FS isn't wired to the CPU).
-* One frame is exactly **14,934 E cycles**: 262 lines x 228 colour clocks
+* One frame is exactly **14,934 E cycles**: 262 lines x 228 color clocks
   = 59,736 crystal ticks, and E = crystal/4.  An output-compare (OCF)
   interrupt that adds 14,934 to OCR each time is phase-locked to the VDG
   and never drifts.  The phase vs the beam is fixed but unknown on real
@@ -142,7 +142,7 @@ depending on shift; erase 98-152.
 
 Disassembled FROGLER, DIGDUG, GALAGOR (all load at `$5000`):
 
-* **Low resolution:** CG3 (VDG `$24`, 128x96, four colours, 3K screen),
+* **Low resolution:** CG3 (VDG `$24`, 128x96, four colors, 3K screen),
   so every operation costs half of RG6.
 * **No beam sync at all.**  FROGLER paces its main loop by polling the
   free-running counter: wait until 35,795 cycles (about 25 Hz) have passed
@@ -341,9 +341,9 @@ sprite); ~10.7K cycles per frame median, 12K peak.
   luck until the direct page moved); the program now clears all its
   variables at start.  Fire held: median 9.8K cycles, 0 frames over.
 
-### Decision: artifact colour (owner, 2026-11-16)
+### Decision: artifact color (owner, 2026-11-16)
 
-The game is in NTSC artifact colour, 128x192 in black, white, orange and
+The game is in NTSC artifact color, 128x192 in black, white, orange and
 blue.  `bench/waves.asm` converted:
 * spritec `halo X Y` (across, down) and per-axis padding; descriptors
   carry PADX, PADY, VW, VH; hit_test uses both.
@@ -351,15 +351,15 @@ blue.  `bench/waves.asm` converted:
   screen pixels wide), so every path keeps its shape and entry x values
   simply halve.  A 1-pixel halo across now covers 2 screen pixels of
   movement; shots and bombs have no horizontal halo at all.
-* Coloured stars: the slow layers are single bits (orange or blue specks),
+* Colored stars: the slow layers are single bits (orange or blue specks),
   the fast layer white pairs.
 * Result: program 15K -> 9K (4 shifts instead of 8, narrower halos);
   frame work median 9.8K -> 8.7K, 1 frame of 2,071 over budget.
-* Colour phase: the emulator's VDG always starts the same way (colours
+* Color phase: the emulator's VDG always starts the same way (colors
   correct first time, confirmed by the owner); real NTSC hardware can come
   up with orange and blue swapped.  CoCo games had you press RESET until a
   sample was right; the MC-10 can't intercept RESET.  Plan: the title
-  screen shows a sample block and offers a key to swap colours *in
+  screen shows a sample block and offers a key to swap colors *in
   software*: one scan over the compiled sprite code that swaps the bit
   pairs of every data immediate (LDAA/LDAB/LDD/ORAA #; an LDAB # followed
   by ABX is a row step, not data; AND masks are pair-symmetric and stay).

@@ -1,6 +1,6 @@
 ; font.asm: a 3x5 font for artifact mode, generated from the glyph art
 ; in the comments (one byte per character cell: three artifact pixels
-; and a gap; white bit pairs, coloured by masking).  ASCII 32-90.
+; and a gap; white bit pairs, colored by masking).  ASCII 32-90.
 font:
                 fcb     $00, $00, $00, $00, $00   ; ' ' ... ... ... ... ...
                 fcb     $30, $30, $30, $00, $30   ; '!' .#. .#. .#. ... .#.

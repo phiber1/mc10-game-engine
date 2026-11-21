@@ -113,7 +113,7 @@ st_next:
                 rts
 
 ; st_a += random column (0-31); st_m = the star's pixel: for the slower
-; layers (S_SPD < $C0) a single random bit, which artifact colour shows as
+; layers (S_SPD < $C0) a single random bit, which artifact color shows as
 ; an orange or a blue speck; for the fastest layer a bit pair, white.
 st_plot:                                ; X = its byte, st_m its bits: plot
                 stx     st_a            ; it; st_a = X, or with bit 15 set
