@@ -6,10 +6,13 @@ has a software sprite engine and an interrupt-driven sound engine, in 6803
 assembly.  Both RG6 colour models are supported: true 256x192 monochrome,
 and NTSC artifact colour at 128x192 in four colours.
 
-**Status: early.** The frame tick and the compiled-sprite compiler work,
-with throughput benchmarks.  Scrolling and sound are next.  See
-[`NOTES.md`](NOTES.md) for the design, the measurements, and what we learned
-from Darren Ottery's games.
+**StarFall**, a complete vertical shooter, is the first game built on it:
+[proj-starfall](https://github.com/phiber1/proj-starfall) (this repository
+is its `engine/` submodule).  The engine has a beam-independent frame tick
+and sound interrupt, compiled halo sprites with a sprite manager, flight
+paths, a star field, text, and MCX32-SD file access (overlays, a high
+score file).  See [`NOTES.md`](NOTES.md) for the design, the measurements,
+and what we learned from Darren Ottery's games.
 
 ## Building
 
@@ -21,8 +24,8 @@ out next to this repository (or set `VMC10=`).
 ```
 make                    # build every program in bench/ (debug build)
 make DEBUG=0            # release build: no debug-port writes
-make run-game           # run the game prototype in the emulator
-make check              # headless checks of the game prototype
+make run-waves          # run a demo in the emulator (see the Makefile)
+make run-view VIEW=sprites/waves.spr   # a sprite file's sprites, still
 make log-sprites        # run a benchmark headless, print the debug-port log
 ```
 
@@ -41,10 +44,9 @@ copy the `.BIN` to the SD card and do the same.
 | Path | Contents |
 |---|---|
 | `engine/` | Hardware definitions, memory layout, frame tick, sprite calls, sprite manager |
-| `bench/` | Proof-of-concept benchmarks and demos (`tick`, `sprites`, `smdemo`) |
+| `bench/` | Benchmarks and demos (`tick`, `sprites`, `smdemo`, `shooter`, `waves`, `sndtest`) and the sprite viewer (`view`) |
 | `sprites/` | Text-art sprites, compiled by `tools/spritec` |
-| `tools/` | `spritec` (sprite compiler), `p2decb` (ASL object file to a multi-segment DECB `.BIN`), `mkfont.py`, `mknotes.py`, `pathsim.py`, `ppm2png`, `mkc10` (legacy `.C10`) |
-| `tests/` | `game_check.sh`: headless checks of the game (`make check`) |
+| `tools/` | `spritec` (sprite compiler), `sprview.py` (the viewer's layout), `p2decb` (ASL object file to a multi-segment DECB `.BIN`), `mkfont.py`, `mknotes.py`, `pathsim.py`, `ppm2png`, `mkc10` (legacy `.C10`) |
 
 ## Sprites
 

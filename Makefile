@@ -8,10 +8,11 @@
 #   make run-shooter     playable test: W A S Z / arrows, SPACE fires
 #                        (run-shooterk: with the CPU meter)
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
-#   make run-game        the game prototype: title, score, lives (run-gamek: meter)
-#   make check           headless checks of the game prototype
 #   make run-view        a still display of every sprite in a sprite file
-#                        (VIEW=sprites/NAME.spr, default sprites/game.spr)
+#                        (VIEW=sprites/NAME.spr, default sprites/waves.spr)
+#
+# StarFall, the first full game built on the engine, lives in its own
+# repository (github phiber1/proj-starfall), with this one as a submodule.
 #   make log-tick        run it headless and print the debug-port log
 #
 # Each bench/NAME.asm builds build/NAME.bin: a DECB binary for the
@@ -36,7 +37,7 @@ PROGS   := $(basename $(notdir $(wildcard bench/*.asm)))
 ENGINE  := $(wildcard engine/*.asm engine/*.inc)
 SPRITES := $(patsubst sprites/%.spr,build/%_spr.inc,$(wildcard sprites/*.spr))
 
-all: $(foreach p,$(PROGS),build/$(p).bin) $(OVL_BINS)
+all: $(foreach p,$(PROGS),build/$(p).bin)
 
 build/mkc10: tools/mkc10.c | build
 	$(CC) $(CFLAGS) -o $@ $<
@@ -119,39 +120,14 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 	    -DART=$(if $(findstring a,$*),1,0) -DMETER=$(if $(findstring k,$*),1,0) \
 	    -DNSPR=16 $(CPPDEFS) $< -o $@
 
-# The game's boss overlays (bench/game_ovl.inc): sprites/bossN.spr ->
-# build/ovlN.bin at OVL_BASE, which the game loads from the SD card as
-# SFBOSSN.BIN.  game_syms.inc carries the game's addresses they need.
-BOSSES   := 1 2 3 4
-OVL_BINS := $(foreach n,$(BOSSES),build/ovl$(n).bin)
-ENVOY_1  := envoy
-ENVOY_2  := envoy2
-ENVOY_3  := envoy3
-ENVOY_4  := envoy4
-OVL_BASE := $(shell awk '/^OVL_BASE/{print substr($$3,2)}' bench/game_ovl.inc)
-OVL_END  := $(shell awk '/^OVL_END/{print substr($$3,2)}' bench/game_ovl.inc)
-build/game.s build/gamek.s: $(foreach n,$(BOSSES),build/boss$(n)_equ.inc) bench/game_ovl.inc
-build/game_syms.inc: build/game.p
-	awk '/Symbol Table/{p=1} p' build/game.lst | tr '|' '\n' | \
-	    awk '$$1=="spr_art" || $$1=="spr_mono" {printf "%s\tequ\t$$%s\n", $$1, $$3}' > $@
-build/ovl%.s: bench/ovl/boss.asm bench/game_ovl.inc build/game_syms.inc build/boss%_spr.inc | build
-	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -Ibench -DHULL=boss$* -DENVOY=$(ENVOY_$*) \
-	    -DSPRINC='"boss$*_spr.inc"' $< -o $@
-build/ovl%.bin: build/ovl%.p build/p2decb
-	build/p2decb $< $@ $(OVL_BASE) $(OVL_BASE)-$(OVL_END)
-overlays: $(OVL_BINS)
-
 # Run in the emulator: the build/sd folder is the MCX32-SD's SD card;
 # LOADM the program, then EXEC.  Mono programs run with artifact colours
 # off.  DBGLOG=FILE logs the debug port to FILE.
 SD      := build/sd
-# The game goes on the card as STARFALL.BIN with SFBOSS1-4.BIN (and keeps
-# STARFALL.HI there); other programs under their own names.
-sdname = $(if $(filter game gamek,$(1)),STARFALL,$(shell echo $(1) | tr a-z A-Z))
-run-%: build/%.bin $$(if $$(filter game gamek,$$*),$$(OVL_BINS))
+sdname = $(shell echo $(1) | tr a-z A-Z)
+run-%: build/%.bin
 	mkdir -p $(SD)
 	cp $< $(SD)/$(call sdname,$*).BIN
-	$(if $(filter game gamek,$*),for n in $(BOSSES); do cp build/ovl$$n.bin $(SD)/SFBOSS$$n.BIN; done)
 	$(EMU) --mcx32sd --8k --sd $(SD) $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
 	    --type 'LOADM"$(call sdname,$*)"\nEXEC\n'
@@ -172,17 +148,13 @@ build/wavesk.s: bench/waves.asm $(ENGINE) $(SPRITES) Makefile | build
 	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
 	    $(CPPDEFS) $< -o $@
 
-build/gamek.s: bench/game.asm $(ENGINE) $(SPRITES) Makefile | build
-	$(CC) -E -P -w -x assembler-with-cpp -Iengine -Ibuild -DDEBUG=$(DEBUG) -DMETER=1 \
-	    $(CPPDEFS) $< -o $@
-
 shot-%: build/%.raw
 	$(HEADLESS) $(ROMS)/MC10.BIN mcx32sd:$(ROMS)/mcx32sd_flash.bin 8k frames:200 \
 	    load:$<,$(LOAD) pc:$(LOAD) frames:$(FRAMES) ppm:build/$*.ppm >/dev/null
 
 # The sprite viewer: build/view_spr.inc and the drawing code come from
 # $(VIEW), rebuilt every time (VIEW may change between runs)
-VIEW    ?= sprites/game.spr
+VIEW    ?= sprites/waves.spr
 build/view_spr.inc: FORCE build/spritec | build
 	build/spritec $(VIEW) > $@
 build/view_list.inc: build/view_spr.inc tools/sprview.py
@@ -190,12 +162,8 @@ build/view_list.inc: build/view_spr.inc tools/sprview.py
 build/view.s: build/view_list.inc build/view_spr.inc
 FORCE:
 
-# Headless checks of the game prototype (needs the emulator's harness)
-check: build/game.bin $(OVL_BINS)
-	VMC10=$(VMC10) sh tests/game_check.sh
-
 clean:
 	rm -rf build
 
-.PHONY: all clean variants smdemo check overlays FORCE
+.PHONY: all clean variants smdemo FORCE
 .PRECIOUS: build/%.s build/%.p build/%.raw build/%_spr.inc build/%.bin
