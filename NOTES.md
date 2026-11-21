@@ -410,3 +410,39 @@ may be drawn past row 223 from below (the bottom gutter ends at $5BFF and
 BSS follows); sounds that play often need long half-periods (every
 half-period is an interrupt); the headless checks should fix the random
 seeds for budget measurements.
+
+### Future: two voices during play (music + effects), 2026-11-20
+
+Not built; a plan for a future game (StarFall's budget is already
+tight).  The owner's aim: a background music voice, with sound effects on
+the other, instead of effects cutting the music off.
+
+* **Three-voice players take the whole CPU.**  The MC-10 three-voice
+  composer from the user group (COMPOS3V.C10, "MUSIC3", loads at $7000)
+  plays with interrupts off: three 16-bit phase accumulators (the
+  increments patched into `ADDD #imm`), each's top bit written in turn to
+  $BFFF, 22 cycles per voice, a 72-cycle loop (12.4 kHz; its pitch table
+  is exactly C2..C7 at that rate).  Its MUS file: "MC", tempo, meter,
+  n1(16), n2(16), then each voice's (pitch index, length) pairs ended by
+  a 0 length, and optionally "V3", n3(16), the third voice.  Fine for a
+  title screen or a jingle with nothing moving (OR in vdg_shadow, not
+  #$64; stop the tick and resync it afterwards), never during play.  It
+  is his code: write our own if we do this, maybe reading MUS files.
+* **Two voices on our interrupt: next-event scheduling.**  Each voice
+  keeps cycles to its next edge (like snd_facc); the interrupt sets OCR to
+  the soonest of voice 1, voice 2 and the frame tick, and handles every
+  event due within ~100 cycles at once (a little jitter, no drift).
+* **Mixing on one bit: pulses, not squares.**  XOR of two squares is ring
+  modulation (sum and difference tones); OR is gritty.  A short pulse per
+  period per voice (bit up, ~20-30 cycles inside the interrupt, bit down)
+  rarely overlaps the other voice, so the output is close to the sum, as
+  in the Spectrum's beeper engines; the width doubles as a volume control.
+  Thinner and quieter than a square.
+* **Cost estimate:** one interrupt per period instead of two.  Melody C5
+  + bass C3: ~654 interrupts/s x ~120 cycles = ~78k cycles/s, ~9% of the
+  CPU, about what one 50% C5 tone costs now (1046 x 67 = 70k).
+* **Cheaper fallback:** alternate two voices every frame in the sequencer
+  (the C64-style arpeggio): no extra CPU, a trill, not a chord.
+* **First step when we get to it:** a bench program with the pulse
+  two-voice interrupt and a frame-alternation version, the cost measured
+  headless, the sound judged by the owner.
