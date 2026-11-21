@@ -847,6 +847,16 @@ blue.  `bench/waves.asm` converted:
   curves of S, R and A.  logo_font: the six letters as 9x15 bitmaps
   (rows drawn twice: 45-degree chamfers), expanded through lg_expand;
   the font magnification is gone (letters not in logo_font stay blank).
+* **Boss fights with rapid fire (owner, 2026-11-20: slowdowns, worst at
+  bosses 2-3).**  Measured with a firing, moving ship: bosses 2/3/4
+  ran 22.5/18.2/12.3% of frames over budget, but 0% without firing.
+  The cost was the sounds rapid fire plays constantly: every half-period
+  is an interrupt (~64 cycles), and the zap (450), the hull's ping (480),
+  explosions (noise 400-600) and the core's clang (noise 250) ran 2-4K
+  cycles a frame.  Now zap 900, ping 900, boom 800/1100, clang 600/900:
+  8.2/6.7/2.2% (boss 1 1.0%).  Escort caps didn't help (the firing ship
+  keeps the escorts down) and are unchanged.  Rule: keep frequent sounds'
+  half-periods long.  Check 5d (boss 2 with fire, limit 10%).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

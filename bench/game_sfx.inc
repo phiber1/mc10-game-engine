@@ -2,12 +2,12 @@
 ; shared with the sound board (bench/sfx.asm) so it plays the real ones.
 ; Sound effects
 fx_zap:         fcb     8, SND_TONE
-                fdb     450, 70
+                fdb     900, 60
                 fcb     0
-fx_boom:        fcb     4, SND_NOISE
-                fdb     400, 0
-                fcb     24, SND_NOISE
-                fdb     600, 30
+fx_boom:        fcb     4, SND_NOISE     ; (noise and tones here are kept
+                fdb     800, 0          ; slow: every half-period is an
+                fcb     24, SND_NOISE   ; interrupt, and boss fights with
+                fdb     1100, 30        ; rapid fire play these constantly)
                 fcb     0
 fx_drop:        fcb     6, SND_TONE     ; a short falling blip
                 fdb     700, 60
@@ -134,14 +134,14 @@ fx_bossin:                              ; the boss arrives: eight low, falling
                 endm
                 fcb     0
 fx_ping:                                ; a shot bounces off the hull (kept
-                fcb     3, SND_TONE     ; below ~1 kHz: high tones cost CPU)
-                fdb     480, 0
+                fcb     3, SND_TONE     ; low: high tones cost CPU, and it
+                fdb     900, 0          ; plays on every shot at a hull)
                 fcb     0
 fx_clang:                               ; a hit on the core
                 fcb     3, SND_NOISE
-                fdb     250, 0
+                fdb     600, 0
                 fcb     8, SND_TONE
-                fdb     520, 40
+                fdb     900, 40
                 fcb     0
 fx_open:                                ; the core's hatch opens
                 NOTE    N_C4, 6

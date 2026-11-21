@@ -393,6 +393,16 @@ over=$(run dbgport:BE00 frames:30 'type: ' $SEEDS frames:250 poke:$(sym dlev),04
        grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "the hardest rounds: frames over budget ${over}% (limit 5%: as the boss fights)" "awk 'BEGIN{exit !($over <= 5.0)}'"
 
+# 5d. The envoy bosses' fights with rapid fire stay within reason (fire
+#     plays the zap, the hull's ping and explosions constantly: their tones
+#     and noise are kept slow, every half-period being an interrupt; boss
+#     2 and 3 ran 18-23% over before).  Boss 2, the ship firing and moving.
+rm -f $SD/STARFALL.HI
+spf=$(printf '%*s' 900 ''); mvb=""; xx=20; dd=4; for i in $(seq 1 270); do mvb="$mvb frames:6 poke:$IV,F0 poke:$SHIP,$(printf %02X $xx)"; xx=$((xx+dd)); [ $xx -ge 100 ] && dd=-4; [ $xx -le 16 ] && dd=4; done
+over=$(run frames:30 'type: ' $SEEDS frames:300 poke:$AREA,01 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 frames:500 \
+       dbgport:BE00 "type:$spf" $mvb | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
+check "boss 2 with rapid fire: frames over budget ${over}% (limit 10%)" "awk 'BEGIN{exit !($over <= 10.0)}'"
+
 echo "----"
 echo "$pass passed, $fail failed"
 [ $fail -eq 0 ]
