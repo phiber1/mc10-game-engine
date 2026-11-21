@@ -3,14 +3,15 @@
 ;
 ;   make run-sfx
 ;
-; The sounds are listed on screen; SPACE plays the one marked and moves
-; the mark to the next (round to the top after the last).
+; The sounds are listed on screen; the arrow keys (or W and Z) move the
+; mark up and down, SPACE plays the marked one (again each press).
 
 #include "layout.inc"
 
                 org     BSS
 sel             rmb     1               ; the marked sound
 keyprev         rmb     1
+pressed         rmb     1
 s_ptr           rmb     2
 
                 org     CODE
@@ -59,14 +60,36 @@ list_end:       pulx
 loop:           jsr     frame_wait
                 jsr     snd_frame
                 jsr     kbd_read
-                ldaa    joy             ; SPACE: just pressed?
-                anda    #J_FIRE
-                cmpa    keyprev
-                beq     loop
-                staa    keyprev
-                tsta
-                beq     loop
-                ldab    sel             ; play the marked sound
+                ldaa    keyprev         ; keys just pressed: up, down, SPACE
+                coma
+                anda    joy
+                ldab    joy
+                stab    keyprev
+                staa    pressed
+                bita    #J_UP           ; up: the one above (from the top,
+                beq     loop_f1         ; the last)
+                bsr     unmark
+                ldaa    sel
+                bne     up_f1
+                ldaa    #NSOUNDS
+up_f1:          deca
+                staa    sel
+                bsr     mark
+loop_f1:        ldaa    pressed
+                bita    #J_DOWN         ; down: the one below (from the
+                beq     loop_f2         ; last, the top)
+                bsr     unmark
+                ldaa    sel
+                inca
+                cmpa    #NSOUNDS
+                bcs     down_f1
+                clra
+down_f1:        staa    sel
+                bsr     mark
+loop_f2:        ldaa    pressed
+                bita    #J_FIRE         ; SPACE: play the marked one (again
+                beq     loop            ; and again: no moving on)
+                ldab    sel
                 aslb
                 aslb
                 ldx     #sounds
@@ -74,17 +97,6 @@ loop:           jsr     frame_wait
                 ldx     0,x
                 ldaa    #9
                 jsr     snd_play
-                bsr     unmark          ; and mark the next
-                inc     sel
-                ldab    sel
-                aslb
-                aslb
-                ldx     #sounds
-                abx
-                ldd     0,x
-                bne     next_ok
-                clr     sel
-next_ok:        bsr     mark
                 bra     loop
 
 mark:           ldaa    #'-'            ; the marker beside the selection
@@ -141,9 +153,10 @@ sounds:         fdb     fx_extra, s1
                 fdb     fx_zap, s12
                 fdb     fx_boom, s13
                 fdb     0, 0
+NSOUNDS         equ     (*-sounds)/4-1
 s_title:        fcc     "STARFALL SOUND BOARD"
                 fcb     0
-s_help:         fcc     "SPACE PLAYS THE MARKED SOUND"
+s_help:         fcc     "UP/DOWN CHOOSE, SPACE PLAYS"
                 fcb     0
 s1:             fcc     "EXTRA SHIP"
                 fcb     0
