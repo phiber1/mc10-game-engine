@@ -134,6 +134,7 @@ sounds:         fdb     fx_extra, s1
                 fdb     fx_bossin, s6
                 fdb     fx_open, s7
                 fdb     fx_clang, s8
+                fdb     fx_ping, s16
                 fdb     fx_bossdie, s9
                 fdb     fx_shipboom, s10
                 fdb     fx_warp, s11
@@ -173,6 +174,8 @@ s13:            fcc     "ALIEN EXPLODES"
 s14:            fcc     "SORTIE BONUS"
                 fcb     0
 s15:            fcc     "GAME OVER"
+                fcb     0
+s16:            fcc     "HULL RICOCHET"
                 fcb     0
 
 #include "game_sfx.inc"

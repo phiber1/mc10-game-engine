@@ -133,10 +133,10 @@ fx_bossin:                              ; the boss arrives: eight low, falling
                 fdb     0, 0
                 endm
                 fcb     0
-fx_ping:                                ; a shot bounces off the hull (kept
-                fcb     3, SND_TONE     ; low: high tones cost CPU, and it
-                fdb     900, 0          ; plays on every shot at a hull)
-                fcb     0
+fx_ping:                                ; a shot ricochets off the hull: a
+                fcb     2, SND_TONE     ; high "tink" falling fast (short:
+                fdb     380, 220        ; it plays on every shot at a hull,
+                fcb     0               ; and high tones cost interrupts)
 fx_clang:                               ; a hit on the core
                 fcb     3, SND_NOISE
                 fdb     600, 0
