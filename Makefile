@@ -10,6 +10,8 @@
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
 #   make run-view        a still display of every sprite in a sprite file
 #                        (VIEW=sprites/NAME.spr, default sprites/waves.spr)
+#   make run-mockup      a still platformer mock-up, mono RG6 (mockups/plat.py;
+#                        preview: build/mockup.png)
 #
 # StarFall, the first full game built on the engine, lives in its own
 # repository (github phiber1/proj-starfall), with this one as a submodule.
@@ -159,6 +161,11 @@ build/view_spr.inc: FORCE build/spritec | build
 	build/spritec $(VIEW) > $@
 build/view_list.inc: build/view_spr.inc tools/sprview.py
 	python3 tools/sprview.py $(VIEW) build/view_spr.inc > $@
+# The platformer mock-up: mockups/plat.py draws the screen
+build/mockup_scr.inc build/mockup.png: mockups/plat.py tools/mkfont.py | build
+	python3 mockups/plat.py
+build/mockup.s: build/mockup_scr.inc
+
 build/view.s: build/view_list.inc build/view_spr.inc
 FORCE:
 
