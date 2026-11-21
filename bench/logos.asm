@@ -100,9 +100,9 @@ s_c:            fcc     "C"
                 fcb     0
 s_d:            fcc     "D"
                 fcb     0
-band_e:         fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0       ; white above blue
-                fcb     0, 0, 0, 2, 0, 2, 2, 0, 2, 2
-                fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+band_e:         fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2       ; the game's (B)
+                fcb     2, 0, 2, 2, 0, 2, 0, 2, 0, 0
+                fcb     2, 0, 0, 0, 0, 0, 0, 0, 0, 0
 band_a:         fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2       ; chrome horizon
                 fcb     2, 2, 2, 0, 0, 1, 1, 1, 1, 1
                 fcb     1, 1, 1, 1, 1, 1, 1, 1, 1, 1

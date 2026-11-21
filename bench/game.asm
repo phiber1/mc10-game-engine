@@ -3057,11 +3057,12 @@ cast:           fdb     saucer_hr
 
 #include "game_logo.inc"            ; big_str: the logo
 
-; the logo's colour bands, a row each (0 white, 1 orange, 2 blue): white
-; above, blue below (owner's choice), with a dithered seam
-bg_band:        fcb     0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                fcb     0, 0, 0, 2, 0, 2, 2, 0, 2, 2
-                fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+; the logo's colour bands, a row each (0 white, 1 orange, 2 blue): blue
+; at the top brightening through dithered scanlines into white, as if lit
+; from below (the owner's choice, B in bench/logos.asm)
+bg_band:        fcb     2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+                fcb     2, 0, 2, 2, 0, 2, 0, 2, 0, 0
+                fcb     2, 0, 0, 0, 0, 0, 0, 0, 0, 0
 col_draw:                               ; the colour check screen
                 jsr     cls
                 ldx     #TXT_AT(70,14)  ; a block that should look orange
