@@ -857,6 +857,16 @@ blue.  `bench/waves.asm` converted:
   8.2/6.7/2.2% (boss 1 1.0%).  Escort caps didn't help (the firing ship
   keeps the escorts down) and are unchanged.  Rule: keep frequent sounds'
   half-periods long.  Check 5d (boss 2 with fire, limit 10%).
+* **Fortress entrance slowdown (owner, 2026-11-20: shooting during the
+  siren slowed boss 4's intro).**  11.1% of frames over with fire.  Two
+  causes: (1) the flashing WARNING banner cleared its rows every frame
+  of its off phase, and the Blorps change had made that 13 rows (~2.7K
+  cycles a frame): now cleared once as it goes off, only the rows in use
+  (5, or 13 with a second line), and redrawn every 4th frame while on;
+  (2) the fortress's cores and envoys rode down with it over the status
+  bar: they now appear when it arrives (fort_hide/fort_show).  Intro
+  with fire: boss 2/3/4 0.7/0.7/0.0%.  Check 5e.  The hop check (2e)
+  keeps its ship invulnerable (a lost ship wiped the field mid-sample).
 * **Agreed plan, in order:**
   1. Done: memory pass.  spritec "shift S" compiles one shift and points
      every table entry at it (the game keeps x on that shift and never

@@ -132,12 +132,13 @@ check "none stays straddling the edge (longest: $2 frames)" "[ $2 -le 30 ]"
 #     the top at a new random x after each dive (owner: they used to dive
 #     in the same columns, so a player could wait them out), stay on
 #     screen, and wait out of sight first (an instant jump looked like a
-#     glitch) until the whole column has left the screen.
+#     glitch) until the whole column has left the screen.  (An alien that
+#     explodes, say against the ship, counts as gone: its slot is reused.)
 W3=$(printf '%04X' $((0x$(sym area1) + 2*8)))
-samples=""; for i in $(seq 1 1800); do samples="$samples frames:1 mem:$ALIENS,200"; done
+samples=""; for i in $(seq 1 1800); do samples="$samples frames:1 poke:$(sym invuln),F0 mem:$ALIENS,200"; done   # (a lost ship wipes the field mid-sample)
 res=$(run frames:30 'type: ' frames:300 poke:$(sym lives),09 poke:$(sym wv_ptr),$W3 poke:$(sym wv_x),23 poke:$(sym wv_left),06 poke:$(sym wv_timer),01 $samples | \
-    grep "^mem $ALIENS" | awk '{nv=0; for(i=0;i<10;i++){b=3+i*20; if($(b+8)$(b+9)!="0000" && int(strtonum("0x"$(b+16))/2)%4 && strtonum("0x"$(b+2))<190) nv++} if(!nv) le=NR;
-      for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); y=strtonum("0x"$(b+2)); s=$(b+8)$(b+9); f=strtonum("0x"$(b+16)); if(s!="0000" && int(f/2)%4){ if(py[i]!="" && py[i]<200 && y>=224){n++; if(!mn||x<mn)mn=x; if(x>mx)mx=x} if(y<192 && x>=118) off++; v=(y<190); if(pv[i]=="1" && !v) g[i]=NR; if(pv[i]=="0" && v && g[i]){d=NR-g[i]; if(!gm||d<gm)gm=d; if(le<g[i]) ov++; g[i]=0} pv[i]=v } else {pv[i]=""; g[i]=0} py[i]=(s!="0000")?y:""}} END{printf "%d %d %d %d %d", n+0, mx-mn, off+0, gm+0, ov+0}')
+    grep "^mem $ALIENS" | awk '{nv=0; for(i=0;i<10;i++){b=3+i*20; if($(b+8)$(b+9)!="0000" && $(b+17)$(b+18)=="0000" && int(strtonum("0x"$(b+16))/2)%4 && strtonum("0x"$(b+2))<190) nv++} if(!nv) le=NR;
+      for(i=0;i<10;i++){b=3+i*20; x=strtonum("0x"$(b)); y=strtonum("0x"$(b+2)); s=$(b+8)$(b+9); if($(b+17)$(b+18)!="0000") s="0000"; f=strtonum("0x"$(b+16)); if(s!="0000" && int(f/2)%4){ if(py[i]!="" && py[i]<200 && y>=224){n++; if(!mn||x<mn)mn=x; if(x>mx)mx=x} if(y<192 && x>=118) off++; v=(y<190); if(pv[i]=="1" && !v) g[i]=NR; if(pv[i]=="0" && v && g[i]){d=NR-g[i]; if(!gm||d<gm)gm=d; if(le<g[i]) ov++; g[i]=0} pv[i]=v } else {pv[i]=""; g[i]=0} py[i]=(s!="0000")?y:""}} END{printf "%d %d %d %d %d", n+0, mx-mn, off+0, gm+0, ov+0}')
 set -- $res
 check "circling aliens re-enter at new spots ($1 re-entries spread over $2 pixels)" "[ $1 -ge 8 ] && [ $2 -ge 50 ]"
 check "and stay on screen (samples off: $3)" "[ $3 -eq 0 ]"
@@ -409,6 +410,16 @@ spf=$(printf '%*s' 900 ''); mvb=""; xx=20; dd=4; for i in $(seq 1 270); do mvb="
 over=$(run frames:30 'type: ' $SEEDS frames:300 poke:$AREA,01 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 frames:500 \
        dbgport:BE00 "type:$spf" $mvb | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
 check "boss 2 with rapid fire: frames over budget ${over}% (limit 10%)" "awk 'BEGIN{exit !($over <= 10.0)}'"
+
+# 5e. The fortress's entrance (descending under the status bar while the
+#     WARNING banner flashes) stays within budget with the ship firing: its
+#     cores and envoys appear when it arrives, and the flashing banner
+#     clears once per flash, not every frame (it ran 11% over).
+rm -f $SD/STARFALL.HI
+over=$(run frames:30 'type: ' $SEEDS frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,09 poke:$IV,F0 \
+       bp:$(sym boss_start) dbgport:BE00 "type:$(printf '%*s' 400 '')" frames:300 | grep 'val=\$BB' | sed 's/.*dt=\([0-9]*\).*/\1/' | \
+       awk '$1>14700 && $1<100000 {o++} END{printf "%.1f", 100*o/NR}')
+check "the fortress's entrance with the ship firing: frames over budget ${over}% (limit 3%)" "awk 'BEGIN{exit !($over <= 3.0)}'"
 
 echo "----"
 echo "$pass passed, $fail failed"

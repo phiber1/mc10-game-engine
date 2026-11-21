@@ -1408,7 +1408,10 @@ bst_cnext:      inc     ci
                 ldaa    ci
                 cmpa    #NCORE
                 bne     bst_core
-                jsr     boss_attach
+                tst     boss_still      ; a fortress powers up on arrival:
+                beq     bst_parts       ; its cores and envoys appear then
+                jsr     fort_hide       ; (riding down with it over the
+bst_parts:      jsr     boss_attach     ; status bar cost too much)
                 ldaa    env_fire
                 staa    env_t
                 ldx     wv_start
@@ -1452,7 +1455,9 @@ boss_logic_f1:  ldx     #boss
                 beq     bl_sway         ; its envoys patrol beside it (or
                 ldd     #ENV_PATROL_V   ; their bombs fall in one column,
                 std     env_v           ; right where the ship must be to
-                ldd     #0              ; shoot them)
+                jsr     fort_show       ; shoot them); its cores and envoys
+                ldx     #boss           ; appear now
+                ldd     #0
                 bra     bl_arr
 bl_sway:        ldd     #BOSS_SPEED
 bl_arr:         std     O_DX,x
@@ -1519,6 +1524,35 @@ bl_flash_f1:    inc     ci
                 cmpa    ncores
                 bcs     bl_flash
 bl_r:           rts
+
+fort_hide:                              ; a fortress's cores and envoys off
+                clra                    ; until it arrives
+fort_hide_b1:   psha
+                jsr     core_obj
+                ldd     #0
+                std     O_SPR,x
+                pula
+                inca
+                cmpa    ncores
+                bcs     fort_hide_b1
+                ldd     #0
+                std     env1+O_SPR
+                std     env2+O_SPR
+                rts
+fort_show:                              ; ... and on: the cores as their
+                clr     ci              ; states say, the envoys if any
+fort_show_b1:   ldaa    ci
+                jsr     core_look
+                inc     ci
+                ldaa    ci
+                cmpa    ncores
+                bcs     fort_show_b1
+                tst     env_left
+                beq     fort_show_r
+                ldd     OVL_BASE+2
+                std     env1+O_SPR
+                std     env2+O_SPR
+fort_show_r:    rts
 
 ; A = a core's index: X = its object.  Uses A, B.
 core_obj:
@@ -2635,16 +2669,23 @@ banner_show:
                 stx     banner_p2
                 rts
 
-banner_update:                          ; redraw it each frame while up (the
-                ldaa    banner_t        ; aliens fly across it), clear it at
-                beq     bu_done         ; the end
+banner_update:                          ; redraw it every 4th frame while up
+                ldaa    banner_t        ; (the aliens fly across it), clear
+                beq     bu_done         ; it at the end
                 dec     banner_t
                 beq     bu_clear
                 tst     banner_fl       ; flashing: off every other 16 frames
-                beq     bu_draw
+                beq     bu_on
                 ldaa    banner_t
                 bita    #16
-                beq     bu_clear
+                bne     bu_on
+                anda    #15             ; (off: cleared once, as it goes off,
+                cmpa    #15             ; not every frame: 13 rows of clear
+                beq     bu_clear        ; are expensive)
+                rts
+bu_on:          ldaa    banner_t
+                anda    #3
+                bne     bu_done
 bu_draw:        ldaa    #TXT_WHITE
                 staa    txt_col
                 ldx     banner_p
@@ -2661,13 +2702,18 @@ bu_line:        ldd     0,x             ; X = fdb screen, then the text
                 ldd     bu_s
                 jmp     txt_str
 bu_clear:
+                ldx     #TXT_AT(BANNER_ROW+5,0) ; the rows in use: one line's,
+                ldd     banner_p2               ; or two lines'
+                beq     bu_clear_f1
+                ldx     #TXT_AT(BANNER_ROW+13,0)
+bu_clear_f1:    stx     bu_s
                 ldx     #TXT_AT(BANNER_ROW,0)
                 clra
                 clrb
 bu_clear_b1:    std     0,x
                 inx
                 inx
-                cpx     #TXT_AT(BANNER_ROW+13,0)   ; (two lines' rows)
+                cpx     bu_s
                 bne     bu_clear_b1
 bu_done:        rts
 
