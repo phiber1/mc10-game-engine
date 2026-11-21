@@ -270,7 +270,7 @@ check "a long boss fight doesn't push the map's ship up (top row ${top:-none})" 
 #     then the warp to area 1 and play.
 SC=$(sym score); RD=$(sym round)
 out=$(run frames:30 'type: ' frames:300 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$LIVES,02 poke:$SC,000000 \
-      poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:500 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
+      poke:$BS,04 frames:20 mem:$MODE,1 mem:$RD,1 frames:900 mem:$SC,1 mem:$RD,1 frames:1500 mem:$AREA,1 mem:$MODE,1 mem:$RD,1)
 m5=$(echo "$out" | memval $MODE 1); r1=$(echo "$out" | memval $RD 1); sc=$(echo "$out" | grep "^mem $SC" | cut -d: -f2 | tr -d ' ')
 r2=$(echo "$out" | memval $RD 2); a0=$(echo "$out" | memval $AREA 1); m0=$(echo "$out" | memval $MODE 2)
 check "the fortress's fall: finale (mode $m5), ship bonus (score's top byte $sc for 3 ships: 2 in reserve and the one flying), round $r1 -> $r2, then area $a0 in play (mode $m0)" \
@@ -297,9 +297,9 @@ check "a game begins with a banner: $rt" "[ $bp = $(sym s_round) ] && [ \"$rt\" 
 DV=$(sym spray_on)    # spray_on, bomb_gap, boss_fire, env_fire follow it
 dvals() { echo "$1" | grep "^mem $DV" | sed -n "${2}p" | cut -d: -f2 | awk '{printf "%d %d %d %d", strtonum("0x"$1), strtonum("0x"$2), strtonum("0x"$3), strtonum("0x"$4)}'; }
 AF=$(sym al_flip)
-out=$(run frames:30 'type: ' frames:200 mem:$DV,4 mem:$AF,1 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$AF,1)
+out=$(run frames:30 'type: ' frames:200 mem:$DV,4 mem:$AF,1 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:900 mem:$DV,4 mem:$AF,1)
 d1=$(dvals "$out" 1); d2=$(dvals "$out" 2); f1=$(echo "$out" | memval $AF 1); f2=$(echo "$out" | memval $AF 2)
-out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:600 mem:$DV,4 mem:$(sym round),1 mem:$AF,1)
+out=$(run frames:30 'type: ' frames:200 poke:$(sym round),05 poke:$AREA,03 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$BS,04 frames:900 mem:$DV,4 mem:$(sym round),1 mem:$AF,1)
 d6=$(dvals "$out" 1); f6=$(echo "$out" | memval $AF 1)
 check "rounds get harder: round 1 ($d1), round 2 ($d2), round 6 ($d6)" "[ \"$d1\" = '36 9 22 16' ] && [ \"$d2\" = '51 8 19 14' ] && [ \"$d6\" = '96 5 10 8' ]"
 check "even rounds swap the aliens' colours (rounds 1, 2, 6: $f1 $f2 $f6)" "[ $f1 -eq 0 ] && [ $f2 -eq 1 ] && [ $f6 -eq 1 ]"

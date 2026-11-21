@@ -66,11 +66,12 @@ MODE_WARP       equ     2               ; blasting off, up behind the status bar
 MODE_COAST      equ     3               ; gone: just the streaking stars
 MODE_ARRIVE     equ     4               ; rising in from the bottom, braking
 MODE_FINALE     equ     5               ; the fortress has fallen: song,
-FIN_TIME        equ     720             ; fireworks, banners (frames, counted
-FIN_T1          equ     520             ; down; the song takes ~680, and the
-FIN_T2          equ     390             ; warp's roar must follow it): "ALL
-FIN_T3          equ     260             ; FOUR BOSSES DEFEATED", the bonus,
-FIN_T4          equ     140             ; "ROUND n", the last firework; at 0,
+FIN_TIME        equ     870             ; fireworks, banners (frames, counted
+FIN_T1          equ     670             ; down; the song takes ~680, and the
+FIN_T2          equ     540             ; warp's roar must follow it): "ALL
+FIN_TB          equ     410             ; FOUR BOSSES DEFEATED", the bonus,
+FIN_T3          equ     260             ; the Blorps' threat, "ROUND n", the
+FIN_T4          equ     140             ; last firework; at 0,
                                         ; the warp
 COAST_TIME      equ     70
 BS_NONE         equ     0               ; boss states
@@ -170,6 +171,7 @@ env_fire        rmb     1               ; ... frames between envoy bombs
 bomb_spd        rmb     2               ; ... bombs' speed (rows a frame, 8.8)
 wp_wrapped      rmb     1
 banner_p        rmb     2               ; the banner being shown
+banner_p2       rmb     2               ; ... and its second line (0: none)
 bu_s            rmb     2
 banner_fl       rmb     1               ; the banner flashes
 mp_t            rmb     1
@@ -2043,8 +2045,17 @@ fin_f1:         subd    #FIN_T1
                 bsr     fin_banner
 fin_f2:         ldd     fin_t
                 subd    #FIN_T2
-                bne     fin_f3
+                bne     fin_f2b
                 jsr     fin_bonus
+fin_f2b:        ldd     fin_t           ; "...BUT THE ALIEN BLORPS / THREATEN
+                subd    #FIN_TB         ; ANOTHER GALAXY!": on to the next
+                bne     fin_f3          ; round
+                ldd     #s_blorps
+                jsr     fin_banner
+                ldd     #s_blorps2
+                std     banner_p2
+                ldaa    #FIN_TB-FIN_T3-5 ; (up until ROUND n)
+                staa    banner_t
 fin_f3:         ldd     fin_t
                 subd    #FIN_T3
                 bne     fin_f4
@@ -2612,6 +2623,8 @@ banner_show:
                 ldaa    #BANNER_TIME
                 staa    banner_t
                 clr     banner_fl       ; steady unless the caller says
+                ldx     #0              ; (one line unless the caller says)
+                stx     banner_p2
                 rts
 
 banner_update:                          ; redraw it each frame while up (the
@@ -2627,7 +2640,10 @@ banner_update:                          ; redraw it each frame while up (the
 bu_draw:        ldaa    #TXT_WHITE
                 staa    txt_col
                 ldx     banner_p
-                ldd     0,x
+                bsr     bu_line
+                ldx     banner_p2       ; a second line?
+                beq     bu_done
+bu_line:        ldd     0,x             ; X = fdb screen, then the text
                 pshb
                 psha
                 inx
@@ -2643,7 +2659,7 @@ bu_clear:
 bu_clear_b1:    std     0,x
                 inx
                 inx
-                cpx     #TXT_AT(BANNER_ROW+5,0)
+                cpx     #TXT_AT(BANNER_ROW+13,0)   ; (two lines' rows)
                 bne     bu_clear_b1
 bu_done:        rts
 
@@ -2995,7 +3011,7 @@ title_draw:
                 jsr     big_str
                 ldaa    col_o
                 staa    txt_col
-                ldx     #TXT_AT(56,9)
+                ldx     #TXT_AT(56,5)
                 ldd     #s_cast
                 jsr     txt_str
                 ldx     #cast           ; the aliens and their names
@@ -3479,6 +3495,12 @@ s_alldone:      fdb     TXT_AT(BANNER_ROW,4)
 s_bonus:        fdb     TXT_AT(BANNER_ROW,5)
                 fcc     "SHIP BONUS: 10000 EACH"
                 fcb     0
+s_blorps:       fdb     TXT_AT(BANNER_ROW,4)
+                fcc     "...BUT THE ALIEN BLORPS"
+                fcb     0
+s_blorps2:      fdb     TXT_AT(BANNER_ROW+8,4)
+                fcc     "THREATEN ANOTHER GALAXY!"
+                fcb     0
 s_round:        fdb     TXT_AT(BANNER_ROW,12)
                 fcc     "ROUND 2"       ; (the digit is set as it shows)
                 fcb     0
@@ -3490,7 +3512,7 @@ s_bossin:       fdb     TXT_AT(BANNER_ROW,11)
                 fcb     0
 s_title:        fcc     "STARFALL"      ; a working title
                 fcb     0
-s_cast:         fcc     "MEET THE ALIENS"
+s_cast:         fcc     "MEET THE ALIEN BLORPS"
                 fcb     0
 s_canyou:       fcc     "CAN YOU DEFEAT"
                 fcb     0
