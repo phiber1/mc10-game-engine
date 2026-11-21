@@ -129,6 +129,7 @@ sounds:         fdb     fx_extra, s1
                 fdb     fx_life, s2
                 fdb     fx_start, s3
                 fdb     fx_salute, s4
+                fdb     fx_gameover, s15
                 fdb     fx_finale, s5
                 fdb     fx_bossin, s6
                 fdb     fx_open, s7
@@ -170,6 +171,8 @@ s12:            fcc     "SHOT"
 s13:            fcc     "ALIEN EXPLODES"
                 fcb     0
 s14:            fcc     "SORTIE BONUS"
+                fcb     0
+s15:            fcc     "GAME OVER"
                 fcb     0
 
 #include "game_sfx.inc"

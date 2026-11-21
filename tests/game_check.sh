@@ -151,10 +151,12 @@ check "and they come back afterwards ($a2)" "[ $a2 -gt 0 ]"
 #     a ship with 0 in reserve ends the game.
 GO=$(sym gover)
 out=$(run frames:30 'type: ' frames:300 mem:$LIVESV,1 poke:$DEAD,01 poke:$DEADT,30 frames:10 mem:$LIVESV,1 frames:300 mem:$LIVESV,1 mem:$DEAD,1 \
-      poke:$LIVESV,00 poke:$(sym invuln),00 poke:$DEAD,01 poke:$DEADT,05 frames:30 mem:$LIVESV,1 mem:$GO,1)
+      poke:$LIVESV,00 poke:$(sym invuln),00 poke:$DEAD,01 poke:$DEADT,05 frames:30 mem:$LIVESV,1 mem:$GO,1 mem:$(sym snd_ptr),2)
 l0=$(echo "$out" | memval $LIVESV 1); l1=$(echo "$out" | memval $LIVESV 2); l2=$(echo "$out" | memval $LIVESV 3)
 l3=$(echo "$out" | memval $LIVESV 4); go=$(echo "$out" | memval $GO 1)
 check "ships: $l0, still $l1 while the ship is lost, $l2 once the next appears; last one lost: $l3, game over $go" "[ $l0 -eq 2 ] && [ $l1 -eq 2 ] && [ $l2 -eq 1 ] && [ $l3 -eq 0 ] && [ $go -eq 1 ]"
+gp=$(echo "$out" | grep "^mem $(sym snd_ptr)" | cut -d: -f2 | tr -d ' '); FXG=$(sym fx_gameover)
+check "game over plays its jingle (sound at \$$gp, fx_gameover \$$FXG)" "[ \$((0x$gp)) -ge \$((0x$FXG)) ] && [ \$((0x$gp)) -lt \$((0x$FXG + 120)) ]"
 
 # 3. A won area (waves cleared, boss defeated) goes through salute, warp,
 #    map and arrival to the next area, back in play mode.

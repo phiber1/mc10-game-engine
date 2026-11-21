@@ -876,6 +876,9 @@ sl_over:
                 clr     lives           ; (none left: it shows 0 already)
                 ldaa    #1
                 staa    status_t
+                ldx     #fx_gameover    ; the game over jingle
+                ldaa    #9
+                jsr     snd_play
                 inc     gover
                 ldd     #s_gameover
                 jsr     banner_show

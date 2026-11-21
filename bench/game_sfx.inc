@@ -108,6 +108,17 @@ fx_bing:                                ; a sortie bonus: two quick, high,
                 fcb     3, SND_TONE
                 fdb     N_E6, 0
                 fcb     0
+fx_gameover:                            ; game over: a falling A minor
+                NOTE    N_E5, 10        ; arpeggio, a darker answer, a long
+                NOTE    N_C5, 10        ; low A (~2 s; an original phrase)
+                NOTE    N_A4, 10
+                REST    4
+                NOTE    N_D5, 8
+                NOTE    N_B4, 8
+                NOTE    N_GS4, 8
+                REST    4
+                NOTE    N_A4, 40
+                fcb     0
 fx_warp:                                ; the afterburner: a rising roar
                 fcb     40, SND_NOISE
                 fdb     900, -12
