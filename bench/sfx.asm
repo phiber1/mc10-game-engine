@@ -51,7 +51,7 @@ list:           pshx
                 pshx
                 jsr     txt_str
                 pulx
-                ldab    #144            ; 9 rows down (288 bytes: two steps)
+                ldab    #128            ; 8 rows down (256 bytes: two steps)
                 abx
                 abx
                 bra     list
@@ -103,8 +103,8 @@ mark:           ldaa    #'-'            ; the marker beside the selection
                 bra     mark_f1
 unmark:         ldaa    #' '
 mark_f1:        psha
-                ldab    sel             ; row 20 + 9 x sel, column 2
-                ldaa    #9
+                ldab    sel             ; row 20 + 8 x sel, column 2
+                ldaa    #8
                 mul
                 addb    #20
                 clra
@@ -151,6 +151,7 @@ sounds:         fdb     fx_extra, s1
                 fdb     fx_shipboom, s10
                 fdb     fx_warp, s11
                 fdb     fx_zap, s12
+                fdb     fx_drop, s17
                 fdb     fx_boom, s13
                 fdb     0, 0
 NSOUNDS         equ     (*-sounds)/4-1
@@ -189,6 +190,8 @@ s14:            fcc     "SORTIE BONUS"
 s15:            fcc     "GAME OVER"
                 fcb     0
 s16:            fcc     "HULL RICOCHET"
+                fcb     0
+s17:            fcc     "BOMB DROP"
                 fcb     0
 
 #include "game_sfx.inc"

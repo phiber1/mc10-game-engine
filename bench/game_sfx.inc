@@ -1,16 +1,17 @@
 ; game_sfx.inc: the game's sound effects and jingles (bench/game.asm),
 ; shared with the sound board (bench/sfx.asm) so it plays the real ones.
 ; Sound effects
-fx_zap:         fcb     8, SND_TONE
-                fdb     900, 60
-                fcb     0
+fx_zap:         fcb     5, SND_TONE     ; the ship's shot: a bright "pew",
+                fdb     600, 90         ; above the aliens' bombs (short: as
+                fcb     0               ; many interrupts as a longer, lower
+                                        ; one, and rapid fire plays it a lot)
 fx_boom:        fcb     4, SND_NOISE     ; (noise and tones here are kept
                 fdb     800, 0          ; slow: every half-period is an
                 fcb     24, SND_NOISE   ; interrupt, and boss fights with
                 fdb     1100, 30        ; rapid fire play these constantly)
                 fcb     0
-fx_drop:        fcb     6, SND_TONE     ; a short falling blip
-                fdb     700, 60
+fx_drop:        fcb     6, SND_TONE     ; a bomb drops: a darker falling
+                fdb     1300, 80        ; blip, below the ship's shot
                 fcb     0
 ; Jingles (priority 9: nothing interrupts them)
 fx_start:                               ; the start fanfare, ~1.6 s
