@@ -140,6 +140,7 @@ sortie_left     rmb     1               ; ... aliens of it still to destroy,
 sortie_hit      rmb     1               ; ... one destroyed already,
 sortie_t        rmb     1               ; ... frames since the last
 hi_new          rmb     1               ; beaten this game: save it
+title_seen      rmb     1               ; the title has been shown once
 hi_buf          rmb     HI_SIZE         ; the file: "SF", score, checksum
 lives           rmb     1               ; ships in reserve (not the one flying)
 dead_t          rmb     1
@@ -303,6 +304,13 @@ title:
 title_f1:       clra                    ; the cast in its own colours
                 jsr     al_colours
                 jsr     title_draw
+                tst     title_seen      ; the very first title: it bursts on
+                bne     title_f2        ; with the boss explosion's roar
+                inc     title_seen      ; (not after a game over)
+                ldx     #fx_bossdie
+                ldaa    #9
+                jsr     snd_play
+title_f2:
                 inc     st_behind       ; the star field, behind the title
                 jsr     stars_init
 t_loop:

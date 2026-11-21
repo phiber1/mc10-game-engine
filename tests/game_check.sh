@@ -45,6 +45,13 @@ b1=$(echo "$out" | grep "^mem $BLK" | sed -n 2p | cut -d: -f2 | tr -d ' ')
 b2=$(echo "$out" | grep "^mem $BLK" | sed -n 3p | cut -d: -f2 | tr -d ' ')
 check "colour check after loading: orange block ($b0), C swaps it ($b1), SPACE goes to the title ($b2)" "[ $b0 = AAAAAAAA ] && [ $b1 = 55555555 ] && [ $b2 = 00000000 ]"
 
+# 1e. The very first title bursts on with the boss explosion's roar; the
+#     title after a game over doesn't.
+FXD=$(sym fx_bossdie); SPTR=$(sym snd_ptr)
+out=$(raw 'type: ' frames:20 mem:$SPTR,2 'type: ' frames:300 poke:$(sym lives),00 poke:$(sym dead),01 poke:$(sym dead_t),02 frames:1200 mem:$(sym mode),1 mem:$SPTR,2)
+p1=$(echo "$out" | grep "^mem $SPTR" | sed -n 1p | cut -d: -f2 | tr -d ' '); p2=$(echo "$out" | grep "^mem $SPTR" | sed -n 2p | cut -d: -f2 | tr -d ' ')
+check "the first title roars (sound at \$$p1, fx_bossdie \$$FXD), the next one doesn't (\$$p2)" "[ \$((0x$p1)) -ge \$((0x$FXD)) ] && [ \$((0x$p1)) -lt \$((0x$FXD + 20)) ] && { [ \$((0x$p2)) -lt \$((0x$FXD)) ] || [ \$((0x$p2)) -ge \$((0x$FXD + 20)) ]; }"
+
 # 1c. The title's star field passes behind it: after 30 s of stars, every
 #     byte the title drew (logo, cast, text) is unchanged.
 #     (Title bytes: nonzero in all three snapshots; a lone star rarely is.)
