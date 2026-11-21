@@ -121,7 +121,7 @@ build/sm_%.s: bench/smdemo.asm $(ENGINE) $(SPRITES) Makefile | build
 
 # The game's boss overlays (bench/game_ovl.inc): sprites/bossN.spr ->
 # build/ovlN.bin at OVL_BASE, which the game loads from the SD card as
-# BOSSN.BIN.  game_syms.inc carries the game's addresses they need.
+# SFBOSSN.BIN.  game_syms.inc carries the game's addresses they need.
 BOSSES   := 1 2 3 4
 OVL_BINS := $(foreach n,$(BOSSES),build/ovl$(n).bin)
 ENVOY_1  := envoy
@@ -145,13 +145,16 @@ overlays: $(OVL_BINS)
 # LOADM the program, then EXEC.  Mono programs run with artifact colours
 # off.  DBGLOG=FILE logs the debug port to FILE.
 SD      := build/sd
+# The game goes on the card as STARFALL.BIN with SFBOSS1-4.BIN (and keeps
+# STARFALL.HI there); other programs under their own names.
+sdname = $(if $(filter game gamek,$(1)),STARFALL,$(shell echo $(1) | tr a-z A-Z))
 run-%: build/%.bin $$(if $$(filter game gamek,$$*),$$(OVL_BINS))
 	mkdir -p $(SD)
-	cp $< $(SD)/$(shell echo $* | tr a-z A-Z).BIN
-	$(if $(filter game gamek,$*),for n in $(BOSSES); do cp build/ovl$$n.bin $(SD)/BOSS$$n.BIN; done)
+	cp $< $(SD)/$(call sdname,$*).BIN
+	$(if $(filter game gamek,$*),for n in $(BOSSES); do cp build/ovl$$n.bin $(SD)/SFBOSS$$n.BIN; done)
 	$(EMU) --mcx32sd --8k --sd $(SD) $(if $(filter sp_m% spk_m% sm_m% shooter%,$*),--no-artifact) \
 	    $(if $(DBGLOG),--debug-port BE00$(comma)$(DBGLOG)) \
-	    --type 'LOADM"$(shell echo $* | tr a-z A-Z)"\nEXEC\n'
+	    --type 'LOADM"$(call sdname,$*)"\nEXEC\n'
 comma := ,
 
 # Headless: load the raw binary straight into memory and jump to it.

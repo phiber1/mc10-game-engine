@@ -659,7 +659,7 @@ blue.  `bench/waves.asm` converted:
   Each boss's hull and envoy (sprites/bossN.spr; boss 1's moved out of
   game.spr) is assembled by bench/ovl/boss.asm at OVL_BASE ($A200-$ADFF,
   bench/game_ovl.inc) into build/ovlN.bin, copied to the SD card as
-  BOSSN.BIN (make run-game and make check do it).  Header: fdb hull_dsc,
+  SFBOSSN.BIN (make run-game and make check do it).  Header: fdb hull_dsc,
   envoy_dsc, 0 (boss_start reads it; it's also the col_swap list, applied
   after a load if the colours were swapped).  map_show calls ovl_need:
   if the area's overlay (boss_tab BT_OVL) isn't the one in memory
@@ -674,7 +674,7 @@ blue.  `bench/waves.asm` converted:
   around the call).  spritec -e gives the game the bosses' constants.
   Memory after: main ends $9451 (~3.5K free below OVL_BASE), low $15FA
   (~2.5K free); overlays 3036 (boss 1, the biggest), 2553, 2766, 982
-  bytes.  make check 3a.  Distribution is now GAME.BIN + BOSS1-4.BIN.
+  bytes.  make check 3a.  Distribution is now STARFALL.BIN + SFBOSS1-4.BIN (+ STARFALL.HI, made by the game).
 * **Fixed: the arriving ship wrote into BSS.**  It started at y 208 in
   the 30-row warp sprite, so rows 224-237 went past the bottom gutter
   ($5800-$5BFF) into BSS at $5C00 (zeroing a strip of variables at every
@@ -774,9 +774,10 @@ blue.  `bench/waves.asm` converted:
     runs col_swap on al_sprites (saucer, dart, orbiter) when the round's
     parity differs from al_flip; the title resets it, so the cast shows
     its own colours; a colour-check swap on top still combines right.
-  * **File names:** GAME.BIN -> STARFALL.BIN, and the boss overlays with
-    an SF or STAR prefix (e.g. SFBOSS1.BIN), so users see what belongs to
-    the game.
+  * **Done (2026-11-20): file names.**  On the card the game is
+    STARFALL.BIN (LOADM"STARFALL"), its bosses SFBOSS1-4.BIN, its high
+    score STARFALL.HI.  The source stays bench/game.asm (make run-game);
+    the Makefile's sdname maps it.
   * **Boss 4's look:** the fortress art is still Claude's first draft;
     the owner hasn't decided on changes yet.
 * **Owner's play-through notes (2026-11-19), done:**

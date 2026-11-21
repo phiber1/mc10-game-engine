@@ -11,8 +11,8 @@ R=$VMC10/roms
 BIN=build/game.bin
 LST=build/game.lst
 SD=build/sd-check
-mkdir -p $SD && cp $BIN $SD/GAME.BIN
-for n in 1 2 3 4; do cp build/ovl$n.bin $SD/BOSS$n.BIN; done   # the boss overlays
+mkdir -p $SD && cp $BIN $SD/STARFALL.BIN
+for n in 1 2 3 4; do cp build/ovl$n.bin $SD/SFBOSS$n.BIN; done   # the boss overlays
 pass=0; fail=0
 check() {   # name, condition (shell test)
     if eval "$2"; then echo "PASS  $1"; pass=$((pass+1)); else echo "FAIL  $1"; fail=$((fail+1)); fi
@@ -20,7 +20,7 @@ check() {   # name, condition (shell test)
 sym() { printf '%04X' 0x$(awk '/Symbol Table/{p=1} p' $LST | tr '|' '\n' | awk -v n=$1 '$1==n{print $3}'); }
 # load the game the way a player does: LOADM from the SD card, then EXEC
 # (past the colour check with SPACE, so a test's own SPACE starts a game from the title)
-run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
+run() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"STARFALL"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
 memval() { grep "^mem $1" | sed -n "${2:-1}p" | awk '{print strtonum("0x"$3)}'; }
 # fixed random seeds, poked as a game starts (see the budget checks)
 SEEDS="poke:$(sym seed),A5C3 poke:$(sym st_seed),5A3C"
@@ -38,7 +38,7 @@ check "play mode with normal stars" "[ $(echo "$out" | memval $MODE) -eq 0 ] && 
 # 1a. The colour check comes once, right after loading: an orange block
 #     (C swaps it to blue), then SPACE leads to the title, without it.
 BLK=48CE    # TXT_AT(70,14): the block's first byte
-raw() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 "$@"; }
+raw() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$SD frames:200 'type:LOADM"STARFALL"\nEXEC\n' frames:120 "$@"; }
 out=$(raw mem:$BLK,4 type:C frames:90 mem:$BLK,4 'type: ' frames:60 mem:$BLK,4 mem:$SHIP,1)
 b0=$(echo "$out" | grep "^mem $BLK" | sed -n 1p | cut -d: -f2 | tr -d ' ')
 b1=$(echo "$out" | grep "^mem $BLK" | sed -n 2p | cut -d: -f2 | tr -d ' ')
@@ -62,10 +62,10 @@ check "the title's stars pass behind it (title bytes changed: $dmg)" "[ $dmg -eq
 # 1d. The high score: no STARFALL.HI on the card (a first run) means 0;
 #     a game ending with a record writes the file ("SF", the BCD score, a
 #     checksum); the next start reads it back (and shows it).
-HS=build/sd-hi; mkdir -p $HS && cp $BIN $HS/GAME.BIN && for n in 1 2 3 4; do cp build/ovl$n.bin $HS/BOSS$n.BIN; done
+HS=build/sd-hi; mkdir -p $HS && cp $BIN $HS/STARFALL.BIN && for n in 1 2 3 4; do cp build/ovl$n.bin $HS/SFBOSS$n.BIN; done
 rm -f $HS/STARFALL.HI
 HSV=$(sym hiscore)
-hrun() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$HS frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
+hrun() { $H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$HS frames:200 'type:LOADM"STARFALL"\nEXEC\n' frames:120 'type: ' frames:30 "$@"; }
 out=$(hrun mem:$HSV,3 'type: ' frames:300 poke:$(sym score),012340 poke:$(sym status_t),01 frames:5 mem:$HSV,3 \
       poke:$(sym lives),00 poke:$(sym dead),01 poke:$(sym dead_t),02 frames:500)
 h0=$(echo "$out" | grep "^mem $HSV" | sed -n 1p | cut -d: -f2 | tr -d ' ')
@@ -182,16 +182,16 @@ jm=$(echo "$out" | grep '^mem' | paste - - | awk -v sd=$SD1 '{x=strtonum("0x"$3)
 set -- $jm
 check "the ship blasts off without a nudge (largest step across $1, drops $2)" "[ $1 -le 1 ] && [ $2 -eq 0 ]"
 
-# 3a. Boss overlays: area 1's boss is loaded from BOSS1.BIN before play,
-#     and the warp to area 2 loads BOSS2.BIN during the map screen (its
+# 3a. Boss overlays: area 1's boss is loaded from SFBOSS1.BIN before play,
+#     and the warp to area 2 loads SFBOSS2.BIN during the map screen (its
 #     header names boss2's hull).  Without the boss files the game stops
 #     with a message (CANNOT LOAD...) instead of running on.
 OC=$(sym ovl_cur); B2D=$(awk '/Symbol Table/{p=1} p' build/ovl2.lst | tr '|' '\n' | awk '$1=="boss2_dsc"{print $3}')
 out=$(run frames:30 'type: ' frames:200 mem:$OC,1 "poke:$ALIENS,$z" poke:$AREA_DONE,01 poke:$ALIVE,00 poke:$(sym boss_state),04 frames:700 mem:$OC,1 mem:A200,2)
 o1=$(echo "$out" | memval $OC 1); o2=$(echo "$out" | memval $OC 2); hd=$(echo "$out" | grep "^mem A200" | cut -d: -f2 | tr -d ' ')
 check "boss overlays load: area 1 ($o1), then area 2 ($o2, header $hd = boss2 $B2D)" "[ $o1 -eq 1 ] && [ $o2 -eq 2 ] && [ $hd = $B2D ]"
-NB=build/sd-noboss; mkdir -p $NB && rm -f $NB/BOSS*.BIN && cp $BIN $NB/GAME.BIN
-out=$($H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$NB frames:200 'type:LOADM"GAME"\nEXEC\n' frames:120 'type: ' frames:30 'type: ' frames:200 mem:$OC,1 mem:$(sym ld_t),1 mem:$MODE,1 frames:200 mem:$(sym ld_t),1)
+NB=build/sd-noboss; mkdir -p $NB && rm -f $NB/*BOSS*.BIN && cp $BIN $NB/STARFALL.BIN
+out=$($H $R/MC10.BIN mcx32sd:$R/mcx32sd_flash.bin 8k sd:$NB frames:200 'type:LOADM"STARFALL"\nEXEC\n' frames:120 'type: ' frames:30 'type: ' frames:200 mem:$OC,1 mem:$(sym ld_t),1 mem:$MODE,1 frames:200 mem:$(sym ld_t),1)
 e1=$(echo "$out" | memval $(sym ld_t) 1); e2=$(echo "$out" | memval $(sym ld_t) 2)
 check "missing boss file: the game stops with a message (BIOS error $e1, still $e2)" "[ $(echo "$out" | memval $OC 1) -eq 0 ] && [ $e1 -gt 4 ] && [ $e1 -eq $e2 ]"
 

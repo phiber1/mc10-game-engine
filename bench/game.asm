@@ -2989,7 +2989,7 @@ hi_save_r:      rts
 
 ; ---------------------------------------------------------------- overlays
 ; This area's boss (hull and envoy sprites) into the overlay area, unless
-; it's there already: LOADM "BOSSn" from the SD card through the
+; it's there already: LOADM "SFBOSSn" from the SD card through the
 ; MCX32-SD BIOS.  Interrupts stay on, so the frame tick goes on counting:
 ; A = frames it took (0: nothing loaded).  If the file can't be loaded
 ; the game stops with a message (it can't go on without its boss).
@@ -3007,7 +3007,7 @@ ovl_need:
                 rts
 ovl_need_f1:    staa    ovl_cur
                 adda    #'0'
-                staa    ovl_name+4
+                staa    ovl_name+6
                 ldx     #ovl_pb         ; the parameter block: all zero but
                 ldab    #PB_SIZE        ; the name, its length and the mode
 ovl_need_b1:    clr     0,x             ; (load offset 0, no callback)
@@ -3016,7 +3016,7 @@ ovl_need_b1:    clr     0,x             ; (load offset 0, no callback)
                 bne     ovl_need_b1
                 ldd     #ovl_name
                 std     ovl_pb+PB_NAME
-                ldaa    #5
+                ldaa    #7
                 staa    ovl_pb+PB_NLEN
                 ldaa    #PB_LOADM
                 staa    ovl_pb+PB_MODE
@@ -3048,7 +3048,7 @@ ovl_err:        stab    ld_t            ; the BIOS's error code
                 ldd     #s_sderr
                 jsr     txt_str
                 bra     *
-ovl_name:       fcc     "BOSS1"         ; (the digit is set as it loads)
+ovl_name:       fcc     "SFBOSS1"       ; (the digit is set as it loads)
 
 ; ---------------------------------------------------------------- title
 title_draw:
@@ -3414,7 +3414,7 @@ pwv_rep:        fcb     P_FLY, 30, 0
 areas:          fdb     area1, area2, area3, area4
 ; (Each wave: descriptor, path; count, launch interval, entry x, x step.)
 ; The bosses, one row per area: envoys, envoy hits, escort waves, the
-; overlay with its hull and envoy sprites (BOSSn.BIN), core list, cannon list, the envoys' top row in the hull,
+; overlay with its hull and envoy sprites (SFBOSSn.BIN), core list, cannon list, the envoys' top row in the hull,
 ; the hull's x (fixed for a fortress), the row it stops at, whether it
 ; stays put (1) or sways (0), its box width and height (with the halo),
 ; and how many escorts may fly at once.  Core lists: a count, then CORE column, row (of its 4x4
