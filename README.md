@@ -11,8 +11,7 @@ and NTSC artifact color at 128x192 in four colors.
 is its `engine/` submodule).  The engine has a beam-independent frame tick
 and sound interrupt, compiled halo sprites with a sprite manager, flight
 paths, a star field, text, and MCX32-SD file access (overlays, a high
-score file).  See [`NOTES.md`](NOTES.md) for the design, the measurements,
-and what we learned from Darren Ottery's games.
+score file).
 
 ## Building
 
