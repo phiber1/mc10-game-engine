@@ -10,6 +10,7 @@
 #   make run-waves       attack waves on scripted flight paths (run-wavesk: meter)
 #   make run-view        a still display of every sprite in a sprite file
 #                        (VIEW=sprites/NAME.spr, default sprites/waves.spr)
+#   make run-cg6demo     CG6 (real colors, NTSC and PAL) on a blue background
 #
 # StarFall, the first full game built on the engine, lives in its own
 # repository (github phiber1/proj-starfall), with this one as a submodule.
@@ -160,6 +161,7 @@ build/view_spr.inc: FORCE build/spritec | build
 build/view_list.inc: build/view_spr.inc tools/sprview.py
 	python3 tools/sprview.py $(VIEW) build/view_spr.inc > $@
 build/view.s: build/view_list.inc build/view_spr.inc
+build/view.s: CPPDEFS += $(shell python3 tools/sprview.py --defs $(VIEW))
 FORCE:
 
 clean:

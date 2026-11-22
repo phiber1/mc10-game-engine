@@ -43,6 +43,70 @@
 #include "macros.inc"
 #include "notes.inc"
 
+; ---------------------------------------------------------------- graphics mode
+; Choose the graphics mode before including this file (defaults: artifact
+; color, as the engine's demos use):
+;
+;   #define GFX_MODE GFX_CG6    GFX_MONO      RG6 256x192, 2 colors
+;                               GFX_ARTIFACT  RG6 with CSS=1 on NTSC: 128x192,
+;                                             4 artifact colors (NTSC only)
+;                               GFX_CG6       CG6 128x192, 4 real colors
+;                                             (NTSC and PAL)
+;   #define GFX_CSS 0           the VDG's color set: CG6 0 green/yellow/blue/
+;                               red, 1 buff/cyan/magenta/orange; MONO 0 green
+;                               on black, 1 buff on black (default 1, or 0
+;                               for CG6; ARTIFACT needs 1)
+;   #define GFX_BG CG_BLUE      the background color (default 0: black, or
+;                               green/buff in CG6): gfx_cls fills with it,
+;                               text draws onto it.  Halo sprites take the
+;                               same color with spritec's "bg" option.
+;
+; gives GFX_VDG (the VDG byte), GFX_FILL (a byte of background pixels) and
+; GFX_2BPP (CG6 and ARTIFACT: 4 pixels a byte, sprite x 0-127).  gfx.asm
+; has gfx_init and gfx_cls.
+#define GFX_MONO 0
+#define GFX_ARTIFACT 1
+#define GFX_CG6 2
+#ifndef GFX_MODE
+#define GFX_MODE GFX_ARTIFACT
+#endif
+#ifndef GFX_CSS
+#if GFX_MODE == GFX_CG6
+#define GFX_CSS 0
+#else
+#define GFX_CSS 1
+#endif
+#endif
+#ifndef GFX_BG
+#define GFX_BG 0
+#endif
+
+CG_GREEN        equ     0               ; CG6 colors (pixel values), CSS=0
+CG_YELLOW       equ     1
+CG_BLUE         equ     2
+CG_RED          equ     3
+CG_BUFF         equ     0               ; ... CSS=1
+CG_CYAN         equ     1
+CG_MAGENTA      equ     2
+CG_ORANGE       equ     3
+; COLOR_BYTE(c): a byte of four pixels of color c (2-bit modes): for
+; txt_col, fills
+COLOR_BYTE      function c,(c)*$55
+
+#if GFX_MODE == GFX_CG6
+GFX_VDG         equ     VDG_AG|VDG_GM2|VDG_GM1|((GFX_CSS)*VDG_CSS)
+GFX_FILL        equ     (GFX_BG)*$55
+GFX_2BPP        equ     1
+#elif GFX_MODE == GFX_ARTIFACT
+GFX_VDG         equ     VDG_RG6|((GFX_CSS)*VDG_CSS)
+GFX_FILL        equ     (GFX_BG)*$55
+GFX_2BPP        equ     1
+#else
+GFX_VDG         equ     VDG_RG6|((GFX_CSS)*VDG_CSS)
+GFX_FILL        equ     (GFX_BG)*$FF
+GFX_2BPP        equ     0
+#endif
+
 ; TXT_AT(row, col): the screen address of a text cell (row in pixel rows,
 ; col 0-31).  See text.asm.
 TXT_AT          function row,col,SCREEN+(row)*ROW_BYTES+(col)

@@ -1,10 +1,13 @@
-; text.asm: text in artifact mode, with the 3x5 font in font.asm.
+; text.asm: text with the 3x5 font in font.asm.
 ;
-; One character = one byte across (three artifact pixels and a gap) by 5
-; rows, so a line holds 32 characters.  txt_col masks the white font into
-; a color: TXT_WHITE, TXT_ORANGE or TXT_BLUE (orange/blue as at color
-; phase 0; after a color swap the program uses the other one).  Text is
-; drawn with plain stores, so it replaces what was under it.
+; One character = one byte across (three 2-bit pixels and a gap) by 5
+; rows, so a line holds 32 characters.  Made for the 2-bit modes (CG6,
+; artifact); in mono each font pixel is two pixels wide.  txt_col masks the
+; white font into a color: COLOR_BYTE(c) for CG6 color c (CG_YELLOW ...),
+; or TXT_WHITE, TXT_ORANGE or TXT_BLUE in artifact mode (orange/blue as at
+; color phase 0; after a color swap the program uses the other one).  Text
+; is drawn with plain stores, so it replaces what was under it; around the
+; letters it draws the background color (GFX_BG, see layout.inc).
 ;
 ; txt_char      A = character (ASCII 32-90), X = screen address: draw it.
 ;               Returns X = the next cell.  ~130 cycles.
@@ -38,21 +41,44 @@ txt_char:
                 std     tx_r+2
                 ldaa    4,x
                 staa    tx_r+4
+                if      GFX_FILL        ; the background around the letters
+                ldx     #tx_r
+txt_bgb1:       ldab    0,x
+                tba
+                anda    txt_col
+                comb
+                andb    #GFX_FILL
+                aba
+                staa    0,x
+                inx
+                cpx     #tx_r+5
+                bne     txt_bgb1
+                endif
                 ldx     tx_scr          ; ... colored onto the screen
                 ldaa    tx_r
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    0,x
                 ldaa    tx_r+1
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    ROW_BYTES,x
                 ldaa    tx_r+2
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    2*ROW_BYTES,x
                 ldaa    tx_r+3
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    3*ROW_BYTES,x
                 ldaa    tx_r+4
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    4*ROW_BYTES,x
                 inx
                 rts
@@ -74,28 +100,51 @@ txt_char2:
                 std     tx_r+2
                 ldaa    4,x
                 staa    tx_r+4
+                if      GFX_FILL        ; the background around the letters
+                ldx     #tx_r
+txt_bgb2:       ldab    0,x
+                tba
+                anda    txt_col
+                comb
+                andb    #GFX_FILL
+                aba
+                staa    0,x
+                inx
+                cpx     #tx_r+5
+                bne     txt_bgb2
+                endif
                 ldx     tx_scr
                 ldaa    tx_r
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    0,x
                 staa    ROW_BYTES,x
                 ldaa    tx_r+1
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    2*ROW_BYTES,x
                 staa    3*ROW_BYTES,x
                 ldaa    tx_r+2
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    4*ROW_BYTES,x
                 staa    5*ROW_BYTES,x
                 ldaa    tx_r+3
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    6*ROW_BYTES,x
                 staa    7*ROW_BYTES,x
                 ldab    #4*ROW_BYTES    ; rows 8-9 are past the 8-bit offset
                 abx
                 abx
                 ldaa    tx_r+4
+                if      GFX_FILL=0
                 anda    txt_col
+                endif
                 staa    0,x
                 staa    ROW_BYTES,x
                 ldx     tx_scr

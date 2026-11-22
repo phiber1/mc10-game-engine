@@ -1,0 +1,36 @@
+# cg6demo.spr: CG6 sprites on a blue background (bench/cg6demo.asm).
+# Colors (CSS=0): G green, Y yellow, B blue, R red; "." is transparent.
+# "bg B": the halos (and erases) fill with blue, the background.
+
+sprite gem cg6 halo 1 bg B
+..YY..
+.YYYY.
+YYRRYY
+.YRRY.
+..YY..
+end
+
+sprite thief cg6 halo 1 bg B
+R......R
+.RRRRRR.
+RRYRRYRR
+RRRRRRRR
+.RRRRRR.
+RR.RR.RR
+R..RR..R
+..R..R..
+.RR..RR.
+end
+
+sprite hero cg6 halo 1 bg B
+..GG..
+.GGGG.
+.YYYY.
+.Y.YY.
+..YY..
+GGGGGG
+Y.GG.Y
+..GG..
+.G..G.
+GG..GG
+end

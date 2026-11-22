@@ -4,9 +4,10 @@
 ;   make run-view                         sprites/game.spr
 ;   make run-view VIEW=sprites/mine.spr   any other sprite file
 ;
-; Each sprite is drawn once (artifact color, halo sprites with their
-; halo routine, at shift 0 or its one shift), named underneath, left to
-; right in rows.  tools/sprview.py makes the drawing code from the file.
+; Each sprite is drawn once (in the file's mode: artifact color, or CG6 on
+; its "bg" color; halo sprites with their halo routine, at shift 0 or its
+; one shift), named underneath, left to right in rows.  tools/sprview.py
+; makes the drawing code from the file.
 
 #include "layout.inc"
 
@@ -17,11 +18,11 @@ vw_rt           rmb     2               ; the sprite routine to call
 start:
                 sei
                 lds     #STACK_TOP
-                ldaa    #VDG_RG6|VDG_CSS
+                ldaa    #GFX_VDG
                 staa    VDG
                 staa    vdg_shadow
                 jsr     cls
-                ldaa    #TXT_WHITE
+                ldaa    #vw_text
                 staa    txt_col
 #include "view_list.inc"
                 bra     *
@@ -33,11 +34,16 @@ vw_call:
                 psha
                 rts
 
-; cls: clear the RG6 screen
+; cls: clear the screen to the background
 cls:
                 ldx     #SCREEN
+                if      GFX_FILL
+                ldaa    #GFX_FILL
+                tab
+                else
                 clra
                 clrb
+                endif
 cls_b1:         std     0,x
                 std     2,x
                 inx
