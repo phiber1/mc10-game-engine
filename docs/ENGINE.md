@@ -147,7 +147,7 @@ unrolled 6803 code (`build/NAME_spr.inc`): no loops, no shifting at run
 time; one routine per sub-byte position.
 
 ```
-sprite NAME MODE [halo N | halo X Y] [pad N] [delta] [shift S] [bg C]
+sprite NAME MODE [halo N | halo X Y] [pad N] [delta] [shift S] [bg C] [noerase]
 <rows of art>
 end
 ```
@@ -178,6 +178,10 @@ end
   move sideways (saves 3/4 of the code in 4-color modes, 7/8 in mono).
 * `bg C`: the background color (a letter of the mode).  The halo, erase
   and store routines fill with it.  Default: pixel value 0.
+* `noerase`: halo sprites without their erase routines (`NAME_er`), for
+  programs that erase by redrawing what's behind (the descriptor's erase
+  entry is 0, so don't `obj_erase` them).  `halo 0` with `noerase` makes a
+  plain masked sprite: only its own pixels drawn, about half the code.
 
 Every sprite also gets OR (`NAME_or`) and XOR (`NAME_xr`) routines unless
 it has a halo, and the constants `NAME_W`, `NAME_H` (including the

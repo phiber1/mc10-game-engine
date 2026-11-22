@@ -8,7 +8,7 @@
  * Input: one or more sprites
  *
  *   sprite NAME mono|artifact|cg6 [pad N] [halo N | halo X Y] [delta]
- *               [shift S] [bg C]
+ *               [shift S] [bg C] [noerase]
  *   ..XXXX..           mono:     . = 0, X = 1                 (8 pixels/byte)
  *   .XXXXXX.           artifact: . black, O orange, B blue, W white
  *   end                          (4 pixels/byte, pairs 10=O 01=B at phase 0)
@@ -37,7 +37,10 @@
  *               earlier: draw in priority order, lowest first.
  *               Halo sprites get only NAME_hr and NAME_er, plus NAME_dsc:
  *               a sprite manager descriptor (draw, erase, call, pad,
- *               visible width, visible height).
+ *               visible width, visible height).  "noerase" leaves out
+ *               NAME_er (the descriptor's erase entry is then 0: don't
+ *               obj_erase such a sprite), for programs that erase by
+ *               redrawing what's behind.
  *   NAME_or, NAME_xr, NAME_er (, NAME_sr / NAME_hr)  routine tables
  *   NAME_d<d>s<s>  with "delta": XOR(old, new) for a one-pixel move in
  *               direction d = (dy+1)*3 + (dx+1) from shift s, in one
@@ -68,7 +71,7 @@
 #define MAXH 192
 
 static char name[64];
-static int artifact, cg6, twobpp, bgval, bgfill, w, h, pad, padx, pady, delta, halo, halox, haloy, oneshift, equonly;
+static int noerase, artifact, cg6, twobpp, bgval, bgfill, w, h, pad, padx, pady, delta, halo, halox, haloy, oneshift, equonly;
 static char art[MAXH][MAXW + 1];
 static unsigned char hal[MAXH][MAXW];   /* halo: sprite grown by `halo` pixels */
 
@@ -300,7 +303,7 @@ static void emit(void)
     printf("%s_PADX\tequ\t%d\n%s_PADY\tequ\t%d\n", name, padx, name, pady);
     if (equonly) return;
     /* halo sprites only need their halo and erase routines */
-    const char *kinds = halo ? "eh" : pad ? "oxes" : "oxe";
+    const char *kinds = halo ? (noerase ? "h" : "eh") : pad ? "oxes" : "oxe";
     int nk = (int)strlen(kinds);
     for (int k = 0; k < nk; k++) {
         printf("%s_%cr:\n", name, kinds[k]);
@@ -314,8 +317,12 @@ static void emit(void)
     if (halo) {
         /* a sprite manager descriptor (engine/sprman.asm) with the hitbox */
         int bpp = twobpp ? 2 : 1;
-        printf("%s_dsc:\n\tfdb\t%s_hr, %s_er, %s\n", name, name, name,
-               twobpp ? "spr_art" : "spr_mono");
+        if (noerase)
+            printf("%s_dsc:\n\tfdb\t%s_hr, 0, %s\n", name, name,
+                   twobpp ? "spr_art" : "spr_mono");
+        else
+            printf("%s_dsc:\n\tfdb\t%s_hr, %s_er, %s\n", name, name, name,
+                   twobpp ? "spr_art" : "spr_mono");
         printf("\tfcb\t%d, %d, %d, %d\t; pad x, pad y, visible width, height\n",
                padx, pady, w - 2 * padx, h - 2 * pady);
         (void)bpp;
@@ -357,6 +364,7 @@ int main(int argc, char **argv)
         if (!in) {
             pad = padx = pady = 0; delta = 0; halo = halox = haloy = 0; oneshift = -1;
             char bgc = 0;
+            noerase = 0;
             if (sscanf(line, "sprite %63s %31s", name, mode) == 2) {
                 /* options after the mode, in any order:
                  * pad N, halo N, halo X Y (across, down), delta */
@@ -374,6 +382,7 @@ int main(int argc, char **argv)
                     else if (!strcmp(tok[i], "pad") && i + 1 < nt) pad = padx = pady = atoi(tok[++i]);
                     else if (!strcmp(tok[i], "shift") && i + 1 < nt) oneshift = atoi(tok[++i]);
                     else if (!strcmp(tok[i], "bg") && i + 1 < nt && strlen(tok[i + 1]) == 1) bgc = tok[++i][0];
+                    else if (!strcmp(tok[i], "noerase")) noerase = 1;
                     else { fprintf(stderr, "%s:%d: bad option %s\n", argv[1], lineno, tok[i]); return 1; }
                 }
                 if (padx < 0 || padx > 16 || pady < 0 || pady > 16) {
