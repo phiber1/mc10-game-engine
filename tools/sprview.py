@@ -71,7 +71,7 @@ for name, w, h, table, nb, _ in sprites:
     shown += 1
     col += width + 1
     rowh = max(rowh, h + 8)
-out.append('\tbra\tvw_done')
+out.append('\tjmp\tvw_done')
 out += strings
 out.append('vw_done:')
 print('\n'.join(out))
