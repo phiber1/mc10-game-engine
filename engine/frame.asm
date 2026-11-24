@@ -1,16 +1,18 @@
 ; frame.asm: the frame tick and the sound interrupt.
 ;
-; One output-compare interrupt drives both.  Each interrupt moves OCR on by
-; snd_half cycles and, when a sound is playing, toggles the speaker (tone)
-; or outputs a random bit (noise).  It also counts snd_half off snd_facc,
-; the cycles left until the next frame tick; when that runs out it bumps
-; frame_count and adds FRAME_CYCLES back.  The accounting is exact, so the
-; tick never drifts; it just lands up to one half-period late, which
-; doesn't matter because nothing in the engine races the beam.  When
-; silent, snd_half is a whole frame and this is a plain frame tick.
+; One output-compare interrupt drives both.  Two countdowns: snd_tt, the
+; cycles to the next speaker event (a tone's toggle, a noise bit; every
+; snd_half cycles), and snd_facc, the cycles to the next frame tick (every
+; FRAME_CYCLES).  Each interrupt takes the time since the last off both,
+; does whichever came due, and sets OCR for whichever comes next.  So the
+; ticks are exactly even whatever is playing (a low tone used to make
+; them land up to a half-period late: frames of uneven length), and the
+; accounting is exact, so nothing drifts.  Two events closer than FI_MIN
+; cycles are done together (so OCR is never set to a time already past).
+; When silent, snd_half is a whole frame and the speaker events do nothing.
 ;
-; About 67 cycles per tone interrupt (noise ~90): a sound costs roughly
-; 67 / snd_half of the CPU (measured: 1 kHz tone ~15%).
+; About 100 cycles per tone interrupt (noise ~120): a sound costs roughly
+; 100 / snd_half of the CPU.
 ;
 ; frame_init    install the ISR and start the tick (returns with
 ;               interrupts on).  Set vdg_shadow before, or right after.
@@ -21,6 +23,8 @@
 ; with MCX BASIC.  On a stock ROM it is $4206, inside the RG6 screen, so
 ; full-screen RG6 programs need the MCX32-SD (or must keep those three
 ; screen bytes as a JMP).
+
+FI_MIN          equ     120             ; events nearer than this: together
 
 frame_init:
                 sei
@@ -41,8 +45,9 @@ frame_init:
                 std     snd_sweep
                 ldd     #FRAME_CYCLES
                 std     snd_half
-                subd    #1              ; first interrupt is a tick
+                std     snd_tt
                 std     snd_facc
+                std     fi_step
                 ldd     #$ACE1          ; noise generator seed
                 std     snd_lfsr
                 ldaa    TCSR            ; first half of clearing a stale OCF
@@ -55,33 +60,52 @@ frame_init:
                 rts
 
 frame_isr:
-                ldaa    TCSR            ; clear OCF: read TCSR ...
-                ldd     OCR
+                ldaa    TCSR            ; clear OCF: read TCSR (OCR written below)
+fi_due:         ldd     snd_tt          ; the speaker event: due?
+                subd    fi_step
+                bgt     fi_nt
                 addd    snd_half
-                std     OCR             ; ... then write OCR: the next event
+                std     snd_tt
 fi_disp:        jmp     fi_count        ; patched by sound.asm: fi_count when
                                         ; silent, fi_tone or fi_noise
+fi_nt:          std     snd_tt
+fi_count:                               ; (after the speaker event)
+                ldd     snd_facc        ; the frame tick: due?
+                subd    fi_step
+                bgt     fi_nf
+                addd    #FRAME_CYCLES
+                inc     frame_count
+                if DEBUG_TICK
+                psha
+                ldaa    frame_count
+                DBGA
+                pula
+                endif
+fi_nf:          std     snd_facc
+                ldd     snd_tt          ; the next: the nearer of the two
+                subd    snd_facc
+                bcs     fi_f1           ; (unsigned: both 1 .. 65535)
+                ldd     snd_facc
+                bra     fi_f2
+fi_f1:          ldd     snd_tt
+fi_f2:          std     fi_step
+                subd    #FI_MIN         ; far enough off: set OCR for it
+                bcc     fi_set
+                ldd     OCR             ; too near: count it as passed (OCR on
+                addd    fi_step         ; by it: no drift) and do it now
+                std     OCR
+                bra     fi_due
+fi_set:         ldd     OCR
+                addd    fi_step
+                std     OCR             ; (writing OCR: OCF cleared)
+                rti
 fi_tone:
                 ldaa    vdg_shadow      ; tone: toggle the speaker
                 eora    #VDG_SND
 fi_out:
                 staa    vdg_shadow
                 staa    VDG
-fi_count:
-                ldd     snd_facc        ; cycles to the next frame tick
-                subd    snd_half
-                bcs     fi_tick
-                std     snd_facc
-                rti
-fi_tick:
-                addd    #FRAME_CYCLES
-                std     snd_facc
-                inc     frame_count
-                if DEBUG_TICK
-                ldaa    frame_count
-                DBGA
-                endif
-                rti
+                bra     fi_count
 fi_noise:                               ; noise: a random speaker bit
                 ldd     snd_lfsr
                 lsrd

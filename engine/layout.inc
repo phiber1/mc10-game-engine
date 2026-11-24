@@ -134,6 +134,8 @@ vdg_shadow      rmb     1               ; last value written to the VDG latch
 snd_mode        rmb     1               ; frame.asm / sound.asm: 0, tone, noise
 snd_half        rmb     2               ; speaker half-period (E cycles)
 snd_facc        rmb     2               ; cycles to the next frame tick
+snd_tt          rmb     2               ; cycles to the next speaker event
+fi_step         rmb     2               ; frame.asm: cycles to the event scheduled
 snd_lfsr        rmb     2               ; noise generator
 snd_ptr         rmb     2               ; next segment of the effect
 snd_sweep       rmb     2               ; per-frame change of snd_half

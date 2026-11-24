@@ -129,7 +129,10 @@ In CG6 the border around the picture is always green (CSS=0) or buff
 `frame.asm`: one output-compare interrupt drives both the 60 Hz frame tick
 and the sound.  `frame_init` installs it (through MCX BASIC's RAM hook at
 `$0206`) and returns with interrupts on; `frame_wait` waits for the next
-tick; `frame_count` (direct page) counts ticks.
+tick; `frame_count` (direct page) counts ticks.  The interrupt keeps two
+countdowns, to the next speaker event and to the next tick, and is set for
+whichever comes first, so ticks stay exactly 14,934 cycles apart whatever
+sound is playing (even a very low tone).
 
 A frame is 14,934 CPU cycles (262 lines of 57 cycles).  The MC-10 doesn't
 connect the VDG's field sync to the CPU, so the tick's phase against the
@@ -276,8 +279,8 @@ An effect is a list of segments ending with a 0 byte:
 ```
 
 A tone's frequency is 447443 / HALF Hz; `notes.inc` names the notes
-(`N_C5` ...).  Each half-period costs an interrupt of about 67 cycles, so
-a sound costs roughly 67 / HALF of the CPU (C4 ~7%, C6 ~25%).  Keep HALF
+(`N_C5` ...).  Each half-period costs an interrupt of about 100 cycles, so
+a sound costs roughly 100 / HALF of the CPU (C4 ~6%, C6 ~37%).  Keep HALF
 at or above `SND_MIN_HALF` (150), and keep sounds that play often low.
 
 ## Debugging and measuring
