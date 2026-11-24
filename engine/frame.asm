@@ -7,8 +7,9 @@
 ; does whichever came due, and sets OCR for whichever comes next.  So the
 ; ticks are exactly even whatever is playing (a low tone used to make
 ; them land up to a half-period late: frames of uneven length), and the
-; accounting is exact, so nothing drifts.  Two events closer than FI_MIN
-; cycles are done together (so OCR is never set to a time already past).
+; accounting is exact, so nothing drifts.  An event due less than FI_LEAD
+; cycles from now (by the free-running counter, after OCR is written) is
+; done at once, so OCR is never left on a time already past.
 ; When silent, snd_half is a whole frame and the speaker events do nothing.
 ;
 ; About 100 cycles per tone interrupt (noise ~120): a sound costs roughly
@@ -24,7 +25,8 @@
 ; full-screen RG6 programs need the MCX32-SD (or must keep those three
 ; screen bytes as a JMP).
 
-FI_MIN          equ     120             ; events nearer than this: together
+FI_LEAD         equ     40              ; an event nearer than this to now is
+                                        ; done at once (setting OCR takes time)
 
 frame_init:
                 sei
@@ -89,16 +91,13 @@ fi_nf:          std     snd_facc
                 bra     fi_f2
 fi_f1:          ldd     snd_tt
 fi_f2:          std     fi_step
-                subd    #FI_MIN         ; far enough off: set OCR for it
-                bcc     fi_set
-                ldd     OCR             ; too near: count it as passed (OCR on
-                addd    fi_step         ; by it: no drift) and do it now
-                std     OCR
-                bra     fi_due
-fi_set:         ldd     OCR
-                addd    fi_step
+                ldd     OCR             ; its time: OCR on by the step (OCR
+                addd    fi_step         ; keeps the exact count: no drift)
                 std     OCR             ; (writing OCR: OCF cleared)
-                rti
+                subd    FRC             ; still FI_LEAD cycles off?  (a time
+                subd    #FI_LEAD        ; already past would only match when
+                bmi     fi_due          ; the counter came round: 65,536
+                rti                     ; cycles of silence and no ticks)
 fi_tone:
                 ldaa    vdg_shadow      ; tone: toggle the speaker
                 eora    #VDG_SND
